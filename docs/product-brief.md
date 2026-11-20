@@ -26,7 +26,7 @@
 4. **批注的位置抽象成接口。** 第一版只实现"PDF 页码 + 坐标 / 文字范围"，以后加"文字锚点"时不用推翻重来。
 5. **批注设计是核心卖点。** App 内的显示完全自己设计，不用丑陋的便签图标。导出时退化成标准 PDF 批注（高亮、ink、文字），保证换别的阅读器也不丢内容。
 6. **AI 回答放在页边，不做聊天窗口。**
-7. **复用 SwipeSay 的 AI 能力**（SwipeSayKit：各家模型接入、提示词、翻译、缓存、用量、生词本）。
+7. **和 SwipeSay 完全独立，不共享代码。** AI 接入可以参考 SwipeSay 的实现思路，但代码在 Ginkgo 里自己写。
 
 ## Apple Pencil 交互（草案）
 
@@ -65,11 +65,9 @@
 - **数据**：SwiftData + CloudKit，文件放 iCloud Drive。
 - **设计语言**：iOS 26 Liquid Glass，排版参考 Apple Books，书写手感对标 GoodNotes。
 
-## 复用 SwipeSayKit
+## AI 接入
 
-- 起步阶段：两个仓库放在同一个父目录下，阅读器用本地路径引用 `../SwipeSay/Packages/SwipeSayKit`。
-- 稳定以后：把 SwipeSayKit 拆成独立仓库，两个 App 都按版本号引用它（SwiftPM 不能引用另一个仓库里某个子目录的包）。
-- 要改的地方：`SharedStorage` 里写死了 `group.com.kenjia.swipesay` 这个 App Group 和对应的钥匙串访问组，要改成由调用方配置。两个 App 都在同一个团队（UBS9FUBNFR）下，以后也可以共享一个 App Group，让 API key 和生词本互通。
+Ginkgo 不依赖 SwipeSay 的任何代码，两个项目各自保持干净。SwipeSay 的 `Packages/SwipeSayKit`（各家模型接入、API key 存储、提示词、翻译缓存）可以拿来**参考**，但 Ginkgo 按自己的需要重新设计。Ginkgo 的侧重点不同：页边批注、带上下文的提问、以后的整本书问答。
 
 ## 发布
 
