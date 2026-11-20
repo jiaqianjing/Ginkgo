@@ -78,3 +78,9 @@
 ## 原型
 
 - 批注风格对比原型：`docs/prototypes/annotation-styles.html`（在线版：https://claude.ai/artifact/9ZTug9ZHzCGXSeBY9iaSno，私有）
+
+## 用户反馈与下一步（2026-11-20）
+
+- **图标第一版不好看**，需要重做。可以考虑用 Apple 的 Icon Composer 做分层的 Liquid Glass 图标，先多出几个方向让用户挑。
+- **网页原型看起来奇怪，体会不到在 iPad 上的状态和交互。** 下一版原型建议直接用 SwiftUI 写，跑在 iPad 模拟器里：用真实的 PDFKit 页面、真实的横竖屏和尺寸，三种批注风格做成可以切换的开关。手势先用手指或鼠标模拟，Pencil 的手感最后要在真机上验证。
+- 三种批注风格（A 页边旁注 / B 一线一卡 / C 手写回应）还没有选定。
