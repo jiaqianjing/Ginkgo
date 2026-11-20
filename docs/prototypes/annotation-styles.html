@@ -1,0 +1,541 @@
+<title>Ginkgo 批注风格</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=Noto+Serif+SC:wght@400;600&family=Long+Cang&family=Inter:wght@400;500;600&display=swap">
+<style>
+/* Layout: a prototype control bar above an iPad-landscape frame; inside, one PDF sheet whose right side is a margin column
+   where annotations live. Below the frame, a short note per style so the three can be compared. */
+:root {
+  --desk: #e6e9ed;          /* surface around the device */
+  --desk-fg: #1f2329;
+  --desk-muted: #5d6570;
+  --app-bg: #d9dce0;        /* PDF viewer canvas */
+  --paper: #fcfaf5;
+  --paper-margin: #f7f3ea;
+  --ink: #23201b;
+  --ink-muted: #7b7468;
+  --rule: #e4ddcf;
+  --gold: #c98a1e;
+  --gold-hl: rgba(247, 200, 80, .48);
+  --gold-tint: #fbf1d8;
+  --graphite: #4b5b7a;
+  --graphite-tint: #eceff5;
+  --sage: #5e8259;
+  --sage-hl: rgba(126, 170, 118, .30);
+  --sage-tint: #e9f0e6;
+  --chip-bg: #ffffff;
+  --chip-on: #1f2329;
+  --chip-on-fg: #ffffff;
+  --shadow: 0 1px 2px rgba(40, 32, 18, .06), 0 8px 28px rgba(40, 32, 18, .10);
+
+  --f-page: "Newsreader", "Noto Serif SC", Georgia, serif;
+  --f-cn: "Noto Serif SC", "Songti SC", serif;
+  --f-hand: "Long Cang", "Kaiti SC", "STKaiti", cursive;
+  --f-ui: "Inter", -apple-system, "PingFang SC", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: #111316; --desk-fg: #e7e9ec; --desk-muted: #9aa2ad; --app-bg: #26282c;
+    --paper: #1f1d1a; --paper-margin: #24221e; --ink: #ebe5d8; --ink-muted: #a59d8f; --rule: #3a362f;
+    --gold: #e7b44c; --gold-hl: rgba(231, 180, 76, .30); --gold-tint: #2f2a1e;
+    --graphite: #9fb0d4; --graphite-tint: #252a35;
+    --sage: #9cc293; --sage-hl: rgba(156, 194, 147, .22); --sage-tint: #222b21;
+    --chip-bg: #1d2024; --chip-on: #e7e9ec; --chip-on-fg: #111316;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --desk: #111316; --desk-fg: #e7e9ec; --desk-muted: #9aa2ad; --app-bg: #26282c;
+  --paper: #1f1d1a; --paper-margin: #24221e; --ink: #ebe5d8; --ink-muted: #a59d8f; --rule: #3a362f;
+  --gold: #e7b44c; --gold-hl: rgba(231, 180, 76, .30); --gold-tint: #2f2a1e;
+  --graphite: #9fb0d4; --graphite-tint: #252a35;
+  --sage: #9cc293; --sage-hl: rgba(156, 194, 147, .22); --sage-tint: #222b21;
+  --chip-bg: #1d2024; --chip-on: #e7e9ec; --chip-on-fg: #111316;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 28px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--desk); color: var(--desk-fg); font-family: var(--f-ui);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+
+/* ---------- prototype controls ---------- */
+.intro { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 16px; }
+.intro h1 { margin: 0; font: 600 22px/1.2 var(--f-ui); letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
+.intro h1 img { width: 34px; height: 34px; border-radius: 8px; }
+.intro p { margin: 4px 0 0; color: var(--desk-muted); font-size: 13.5px; max-width: 56ch; line-height: 1.55; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; }
+.seg { display: inline-flex; background: var(--chip-bg); border-radius: 10px; padding: 3px; box-shadow: var(--shadow); }
+.seg button {
+  font: 500 13px/1 var(--f-ui); color: var(--desk-fg); background: transparent; border: 0;
+  padding: 9px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap;
+}
+.seg button[aria-pressed="true"] { background: var(--chip-on); color: var(--chip-on-fg); }
+.seg button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+/* ---------- device ---------- */
+.device { background: #16181b; border-radius: 34px; padding: 14px; box-shadow: 0 30px 60px rgba(0,0,0,.18); }
+.screen { background: var(--app-bg); border-radius: 22px; overflow: hidden; position: relative; }
+.status { display: flex; justify-content: space-between; padding: 8px 22px 0; font: 600 12px/1 var(--f-ui); color: var(--desk-fg); opacity: .8; }
+.appbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 18px 12px; color: var(--desk-fg); }
+.appbar .left, .appbar .right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.appbar .back { font: 500 14px var(--f-ui); color: var(--gold); white-space: nowrap; }
+.appbar .doc { font: 600 13.5px var(--f-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.appbar .pg { font: 400 12.5px var(--f-ui); color: var(--desk-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.appbar svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; opacity: .75; }
+.canvas { padding: 6px 22px 92px; overflow-x: auto; }
+
+/* ---------- sheet: text column + margin column ---------- */
+.sheet {
+  position: relative; margin: 0 auto; max-width: 980px; background: var(--paper);
+  box-shadow: var(--shadow); border-radius: 3px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px;
+}
+.text { padding: 46px 52px 56px 64px; color: var(--ink); font: 400 17.5px/1.62 var(--f-page); min-width: 0; }
+.runhead { display: flex; justify-content: space-between; font: 400 11px/1 var(--f-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 34px; }
+.text h2 { font: 400 13px/1 var(--f-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); margin: 0 0 10px; }
+.text h3 { font: 400 34px/1.15 var(--f-page); margin: 0 0 26px; letter-spacing: -.01em; text-wrap: balance; }
+.text p { margin: 0 0 1em; hyphens: auto; text-align: justify; }
+.text p:first-of-type::first-letter { font-size: 3.2em; float: left; line-height: .9; padding: 6px 8px 0 0; color: var(--gold); }
+.folio { margin-top: 30px; text-align: center; font: 400 12px var(--f-ui); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.margin { position: relative; background: var(--paper-margin); border-left: 1px solid var(--rule); min-width: 0; }
+.notes { position: absolute; inset: 0; }
+.ink { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+
+/* anchors in the text */
+.hl, .anchor { border-radius: 2px; transition: background-color .2s, box-shadow .2s; cursor: pointer; }
+.hl { -webkit-box-decoration-break: clone; box-decoration-break: clone; padding: 0 1px; }
+.hl[data-color="gold"] { background: linear-gradient(transparent 14%, var(--gold-hl) 14%, var(--gold-hl) 90%, transparent 90%); }
+.hl[data-color="sage"] { background: linear-gradient(transparent 14%, var(--sage-hl) 14%, var(--sage-hl) 90%, transparent 90%); }
+.hl[data-color="graphite"] { background: linear-gradient(transparent 14%, var(--graphite-tint) 14%, var(--graphite-tint) 90%, transparent 90%); }
+.anchor.under { text-decoration: underline; text-decoration-color: var(--sage); text-decoration-style: wavy; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.is-active.hl { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3px currentColor; color: inherit; }
+.is-active.anchor { background: var(--sage-hl); }
+
+/* ---------- shared note bits ---------- */
+.note { position: absolute; left: 18px; right: 18px; transition: top .25s ease, opacity .2s; }
+.kind { font: 600 10.5px/1 var(--f-ui); letter-spacing: .14em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 6px; }
+.kind i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+[data-color="gold"] { --c: var(--gold); --t: var(--gold-tint); }
+[data-color="graphite"] { --c: var(--graphite); --t: var(--graphite-tint); }
+[data-color="sage"] { --c: var(--sage); --t: var(--sage-tint); }
+.hand { font: 400 22px/1.25 var(--f-hand); color: var(--graphite); margin: 0; }
+.answer { font: 400 13.5px/1.72 var(--f-cn); color: var(--ink); margin: 0; }
+.meta { font: 400 11px var(--f-ui); color: var(--ink-muted); display: flex; gap: 12px; }
+.meta button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.meta button:hover { color: var(--c); }
+
+/* ---------- Style A: margin sidenotes with hairline leaders ---------- */
+.note-a { padding: 12px 14px 11px; background: var(--paper); border-radius: 8px; box-shadow: 0 0 0 1px var(--rule); display: grid; gap: 7px; }
+.note-a .kind { color: var(--c); }
+.note-a.is-active { box-shadow: 0 0 0 1px var(--c), 0 6px 18px rgba(40,32,18,.08); }
+.reading .note-a { opacity: .55; }
+.reading .note-a:hover, .reading .note-a.is-active { opacity: 1; }
+.reading .note-a .answer { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.reading .note-a:hover .answer, .reading .note-a.is-active .answer { -webkit-line-clamp: unset; }
+
+/* ---------- Style B: a line when folded, a card when open ---------- */
+.note-b { left: 0; right: 18px; }
+.note-b .mark {
+  position: absolute; left: -1px; top: 0; width: 4px; border: 0; padding: 0; border-radius: 0 3px 3px 0;
+  background: var(--c); cursor: pointer; transition: width .2s;
+}
+.note-b .mark:hover, .note-b .mark:focus-visible { width: 7px; outline: none; }
+.note-b .peek { position: absolute; left: 16px; top: 0; font: 400 12px/1.4 var(--f-cn); color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 16px); cursor: pointer; }
+.note-b .card {
+  margin-left: 16px; padding: 12px 14px 11px; border-radius: 10px; background: var(--t);
+  display: grid; gap: 7px; transform-origin: left top; animation: unfold .22s ease;
+}
+.note-b .card .kind { color: var(--c); }
+.note-b:not(.open) .card { display: none; }
+.note-b.open .peek { display: none; }
+@keyframes unfold { from { opacity: 0; transform: translateX(-6px) scale(.98); } to { opacity: 1; transform: none; } }
+
+/* ---------- Style C: handwriting with the answer underneath ---------- */
+.note-c { display: grid; gap: 6px; padding-left: 4px; }
+.note-c .hand { transform: rotate(-1.2deg); transform-origin: left; }
+.note-c .label { font: 400 21px/1 var(--f-hand); color: var(--c); }
+.note-c .answer { padding-left: 14px; border-left: 1px solid var(--rule); color: var(--ink); }
+.note-c .answer .leaf { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; }
+.note-c.is-active .answer { border-left-color: var(--c); }
+.reading .note-c .answer { opacity: .6; }
+.reading .note-c:hover .answer, .reading .note-c.is-active .answer { opacity: 1; }
+
+/* ---------- Pencil tool palette (decorative) ---------- */
+.palette {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+  display: flex; gap: 4px; padding: 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 72%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent), var(--shadow);
+}
+.palette span { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); }
+.palette span.on { background: var(--gold-tint); color: var(--gold); }
+.palette svg { width: 21px; height: 21px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- selection popover ---------- */
+.pop {
+  position: fixed; z-index: 20; display: flex; gap: 2px; padding: 4px; border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent), 0 10px 30px rgba(0,0,0,.16);
+  font-family: var(--f-ui);
+}
+.pop button { font: 500 13px/1 var(--f-ui); color: var(--ink); background: none; border: 0; padding: 9px 12px; border-radius: 8px; cursor: pointer; }
+.pop button:hover, .pop button:focus-visible { background: var(--gold-tint); color: var(--gold); outline: none; }
+.pop input { font: 400 13px var(--f-ui); width: 220px; border: 0; background: transparent; color: var(--ink); padding: 8px 10px; outline: none; }
+
+/* ---------- comparison notes ---------- */
+.about { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.about article { background: var(--chip-bg); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow); display: grid; gap: 8px; align-content: start; cursor: pointer; border: 1.5px solid transparent; }
+.about article.current { border-color: var(--gold); }
+.about h4 { margin: 0; font: 600 14.5px/1.3 var(--f-ui); }
+.about h4 b { color: var(--gold); margin-right: 6px; }
+.about p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--desk-muted); }
+.about ul { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.65; color: var(--desk-muted); }
+.hint { font-size: 12.5px; color: var(--desk-muted); text-align: center; margin: 0; }
+
+/* ---------- narrow screens: notes fall below the page ---------- */
+.stacked .sheet { grid-template-columns: minmax(0, 1fr); }
+.stacked .margin { border-left: 0; border-top: 1px solid var(--rule); padding: 18px 0 8px; }
+.stacked .notes { position: static; display: grid; gap: 14px; padding: 0 0 10px; }
+.stacked .note { position: relative !important; top: auto !important; }
+.stacked .text { padding: 28px 24px 34px; font-size: 16px; }
+.stacked .text h3 { font-size: 27px; }
+@media (max-width: 860px) {
+  .about { grid-template-columns: minmax(0, 1fr); }
+  .device { padding: 8px; border-radius: 22px; }
+  .screen { border-radius: 15px; }
+  .canvas { padding: 4px 10px 84px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <div>
+      <h1><img alt="" src="" id="logo">Ginkgo 批注风格原型</h1>
+      <p>同一页 PDF，同样三条批注，切换风格对比效果。在书页上选中一段文字，可以试试“划线后提问”的流程（原型没有接模型，回答是示意文字）。</p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="批注风格">
+        <button id="sA" data-style="a" aria-pressed="true">A 页边旁注</button>
+        <button id="sB" data-style="b" aria-pressed="false">B 一线一卡</button>
+        <button id="sC" data-style="c" aria-pressed="false">C 手写回应</button>
+      </div>
+      <div class="seg" role="group" aria-label="模式">
+        <button id="mR" data-mode="reading" aria-pressed="false">阅读模式</button>
+        <button id="mV" data-mode="review" aria-pressed="true">回顾模式</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="device">
+    <div class="screen" id="screen">
+      <div class="status"><span>9:41</span><span>100%</span></div>
+      <div class="appbar">
+        <div class="left">
+          <span class="back">‹ 书库</span>
+          <span class="doc">The Patient Tree.pdf</span>
+          <span class="pg">12 / 214</span>
+        </div>
+        <div class="right" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4z"/></svg>
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="sheet" id="sheet">
+          <div class="text" id="text">
+            <div class="runhead"><span>The Patient Tree</span><span>Chapter Two</span></div>
+            <h2>Chapter Two</h2>
+            <h3>A Living Fossil on the Pavement</h3>
+            <p><em>Ginkgo biloba</em> is often called a living fossil. Its lineage reaches back more than two hundred million years, and the leaves of trees lining city streets today are nearly indistinguishable from those pressed into Jurassic stone. Few organisms have changed so little for so long, and fewer still have done it while surviving everything the planet has thrown at them.</p>
+            <p>What makes the ginkgo remarkable is not strength but redundancy. <span class="hl" data-color="gold" data-note="n1">It hedges against catastrophe by doing many modest things well, rather than one thing brilliantly.</span> Its wood resists fungus, its leaves deter insects, and its roots tolerate compacted soil and polluted air. None of these traits is extraordinary on its own; together they amount to a kind of quiet stubbornness.</p>
+            <p>Several ginkgo trees stood within two kilometres of the hypocentre in Hiroshima in 1945. They were charred, yet within months they had put out new buds. Botanists still argue about why, but the trees joined the <span class="anchor" data-note="n2">hibakujumoku</span>, the survivor trees that residents have tended ever since with something close to reverence.</p>
+            <p>For centuries, scholars in China, Korea and Japan tucked ginkgo leaves between the pages of their books. The practice was practical before it was poetic: the leaves were believed to repel the silverfish that fed on paper and paste. <span class="anchor under" data-note="n3">A reader's library was, in this sense, guarded by the same tree that had outlasted the dinosaurs.</span></p>
+            <p>Patience, for a tree, is not passivity. It is a strategy that pays out over spans no single observer can witness, which may be why we so often mistake it for luck.</p>
+            <div class="folio">12</div>
+          </div>
+          <aside class="margin" id="margin" aria-label="页边批注">
+            <div class="notes" id="notes"></div>
+          </aside>
+          <svg class="ink" id="ink" aria-hidden="true"></svg>
+        </div>
+      </div>
+      <div class="palette" aria-hidden="true">
+        <span><svg viewBox="0 0 24 24"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg></span>
+        <span class="on"><svg viewBox="0 0 24 24"><path d="M9 15l-4 5h5l2-2"/><path d="M8 14l8-10 4 4-10 8z"/></svg></span>
+        <span><svg viewBox="0 0 24 24"><path d="M12 4c4.5 0 8 2.5 8 5.5S16.5 15 12 15c-1 0-2-.1-2.8-.4L6 18v-4.2C4.8 12.6 4 11.1 4 9.5 4 6.5 7.5 4 12 4z" stroke-dasharray="2.5 2.5"/></svg></span>
+        <span><svg viewBox="0 0 24 24"><path d="M12 3c-1 4-4 5-4 9a4 4 0 008 0c0-4-3-5-4-9z"/><path d="M12 13v8"/></svg></span>
+      </div>
+    </div>
+  </div>
+
+  <section class="about" id="about">
+    <article data-style="a">
+      <h4><b>A</b>页边旁注</h4>
+      <p>书页右侧留出一列页边，卡片和对应的那行文字对齐，用一根细线连回原文。</p>
+      <ul><li>好处：最清楚，一眼知道哪张卡对应哪句话</li><li>代价：需要横屏或更窄的书页；批注多时页边会拥挤</li></ul>
+    </article>
+    <article data-style="b">
+      <h4><b>B</b>一线一卡</h4>
+      <p>平时只在页边留一道颜色线和一行预览，点一下展开成卡片。颜色和高亮一致，靠颜色关联。</p>
+      <ul><li>好处：最安静，读书时几乎不打扰</li><li>代价：要多点一下才能看到内容</li></ul>
+    </article>
+    <article data-style="c">
+      <h4><b>C</b>手写回应</h4>
+      <p>保留你在页边写的手写笔迹，AI 的回答排在笔迹下方，像有人在你的书上回了一句话。</p>
+      <ul><li>好处：最有温度，最贴近纸书批注，和 Pencil 的定位最一致</li><li>代价：排版自由度高，信息密度低</li></ul>
+    </article>
+  </section>
+  <p class="hint">在书页上选中文字，会弹出“翻译 / 解释 / 提问”。悬停批注时，对应原文会亮起来。</p>
+</div>
+
+<div class="pop" id="pop" hidden></div>
+
+<script>
+(() => {
+  const NOTES = [
+    { id: 'n1', kind: '翻译', color: 'gold', q: null,
+      body: '它靠把许多平凡的事都做好来抵御灾难，而不是把一件事做到极致。' },
+    { id: 'n2', kind: '解释', color: 'graphite', circle: true, q: null,
+      body: '被爆树木（日语「被爆樹木」）：指 1945 年原子弹爆炸后存活下来的树。广岛登记在册的有一百多棵，其中包括几棵银杏，至今仍被当地人照料。' },
+    { id: 'n3', kind: '提问', color: 'sage', q: '银杏叶真的能防虫吗？',
+      body: '有一定道理。银杏叶含有银杏酸等成分，对一些昆虫有驱避作用，但效果有限。古人夹叶子更多是经验做法，后来也成了一种读书人的风雅习惯。' },
+  ];
+  const LEAF = '<svg class="leaf" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c0-3 .3-5 0-7-3.5-.2-8-2.4-8-7 2 .4 4-1 6-2 .7 1.3 1.3 1.8 2 2 .7-.2 1.3-.7 2-2 2 1 4 2.4 6 2 0 4.6-4.5 6.8-8 7" fill="var(--gold)" stroke="none"/></svg>';
+
+  const state = { style: 'a', mode: 'review', open: new Set(['n3']), seq: 0 };
+  try { const s = localStorage.getItem('ginkgo-style'); if (s && 'abc'.includes(s)) state.style = s; } catch (e) {}
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const screen = $('#screen'), sheet = $('#sheet'), textEl = $('#text'), notesEl = $('#notes'), ink = $('#ink'), pop = $('#pop');
+
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const anchorsOf = (id) => [...textEl.querySelectorAll(`[data-note="${id}"]`)];
+
+  function noteHTML(n) {
+    const q = n.q ? `<p class="hand">${esc(n.q)}</p>` : '';
+    const meta = `<div class="meta"><button type="button">追问</button><button type="button">复制</button><button type="button">删除</button></div>`;
+    if (state.style === 'a') {
+      return `<article class="note note-a" data-id="${n.id}" data-color="${n.color}">
+        <span class="kind"><i></i>${n.kind}</span>${q}<p class="answer">${esc(n.body)}</p>${meta}</article>`;
+    }
+    if (state.style === 'b') {
+      const open = state.mode === 'review' || state.open.has(n.id);
+      return `<div class="note note-b${open ? ' open' : ''}" data-id="${n.id}" data-color="${n.color}">
+        <button class="mark" type="button" aria-label="展开${n.kind}批注"></button>
+        <span class="peek">${esc(n.q || n.body)}</span>
+        <div class="card"><span class="kind"><i></i>${n.kind}</span>${q}<p class="answer">${esc(n.body)}</p>${meta}</div></div>`;
+    }
+    const head = n.q ? q : `<span class="label">${n.kind}·</span>`;
+    return `<div class="note note-c" data-id="${n.id}" data-color="${n.color}">${head}<p class="answer">${LEAF}${esc(n.body)}</p></div>`;
+  }
+
+  function render() {
+    screen.classList.toggle('reading', state.mode === 'reading');
+    notesEl.innerHTML = NOTES.map(noteHTML).join('');
+    document.querySelectorAll('[data-style]').forEach((b) => {
+      if (b.tagName === 'BUTTON') b.setAttribute('aria-pressed', String(b.dataset.style === state.style));
+      else b.classList.toggle('current', b.dataset.style === state.style);
+    });
+    document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
+    layout();
+  }
+
+  function rel(rect, base) { return { x: rect.left - base.left, y: rect.top - base.top, w: rect.width, h: rect.height, r: rect.right - base.left, b: rect.bottom - base.top }; }
+
+  function layout() {
+    const stacked = sheet.clientWidth < 720;
+    screen.classList.toggle('stacked', stacked);
+    const base = sheet.getBoundingClientRect();
+    const mBase = notesEl.getBoundingClientRect();
+    let paths = '';
+
+    // circles drawn by the pencil (all styles: it's the gesture, not the note style)
+    NOTES.filter((n) => n.circle).forEach((n) => {
+      anchorsOf(n.id).forEach((a) => { paths += circlePath(rel(a.getBoundingClientRect(), base), n.id); });
+    });
+
+    if (!stacked) {
+      const items = [...notesEl.children].map((el) => {
+        const a = anchorsOf(el.dataset.id);
+        const first = a[0] ? a[0].getClientRects()[0] : null;
+        const want = first ? first.top - mBase.top - (state.style === 'b' ? 0 : 6) : 0;
+        return { el, want };
+      }).sort((p, q) => p.want - q.want);
+      let floor = 8;
+      items.forEach((it) => {
+        const top = Math.max(it.want, floor);
+        it.el.style.top = top + 'px';
+        if (state.style === 'b') {
+          const a = anchorsOf(it.el.dataset.id);
+          const rects = a.flatMap((x) => [...x.getClientRects()]);
+          const h = rects.length ? rects[rects.length - 1].bottom - rects[0].top : 20;
+          const mark = it.el.querySelector('.mark');
+          mark.style.height = Math.max(18, h) + 'px';
+          mark.style.top = (it.want - top) + 'px';
+        }
+        floor = top + it.el.offsetHeight + 12;
+      });
+      notesEl.style.minHeight = floor + 'px';
+
+      if (state.style === 'a') {
+        items.forEach((it) => {
+          const a = anchorsOf(it.el.dataset.id);
+          const rects = a.flatMap((x) => [...x.getClientRects()]);
+          if (!rects.length) return;
+          const last = rel(rects[rects.length - 1], base);
+          const card = rel(it.el.getBoundingClientRect(), base);
+          const x1 = last.r + 4, y1 = last.y + last.h / 2, x2 = card.x, y2 = card.y + 16;
+          const color = `var(--${NOTES.find((n) => n.id === it.el.dataset.id).color})`;
+          paths += `<circle cx="${x1}" cy="${y1}" r="2.2" fill="${color}"/>`;
+          paths += `<path d="M${x1} ${y1} C${x1 + 60} ${y1}, ${x2 - 50} ${y2}, ${x2} ${y2}" stroke="${color}" stroke-width="1" fill="none" opacity=".55"/>`;
+        });
+      }
+    } else {
+      notesEl.style.minHeight = '';
+    }
+    ink.innerHTML = paths;
+  }
+
+  // a slightly uneven, overlapping pencil loop around a word
+  function circlePath(r, seed) {
+    const cx = r.x + r.w / 2, cy = r.y + r.h / 2, rx = r.w / 2 + 12, ry = r.h / 2 + 7;
+    let s = [...seed].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+    const pts = [];
+    const start = -2.6, sweep = Math.PI * 2 + 0.55, steps = 64;
+    const wob = rnd() * 6;
+    for (let i = 0; i <= steps; i++) {
+      const t = start + (sweep * i) / steps;
+      const k = 1 + 0.035 * Math.sin(t * 3 + wob) + (i / steps) * 0.06;
+      pts.push([cx + Math.cos(t) * rx * k, cy + Math.sin(t) * ry * k - (i / steps) * 3]);
+    }
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    return `<path d="${d}" stroke="var(--graphite)" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".85"/>`;
+  }
+
+  // ---------- cross-highlighting between notes and their anchors ----------
+  function setActive(id, on) {
+    anchorsOf(id).forEach((a) => a.classList.toggle('is-active', on));
+    const n = notesEl.querySelector(`[data-id="${id}"]`);
+    if (n) n.classList.toggle('is-active', on);
+  }
+  notesEl.addEventListener('mouseover', (e) => { const n = e.target.closest('.note'); if (n) setActive(n.dataset.id, true); });
+  notesEl.addEventListener('mouseout', (e) => { const n = e.target.closest('.note'); if (n) setActive(n.dataset.id, false); });
+  textEl.addEventListener('mouseover', (e) => { const a = e.target.closest('[data-note]'); if (a) setActive(a.dataset.note, true); });
+  textEl.addEventListener('mouseout', (e) => { const a = e.target.closest('[data-note]'); if (a) setActive(a.dataset.note, false); });
+
+  function toggleOpen(id) {
+    if (state.style !== 'b' || state.mode === 'review') return;
+    state.open.has(id) ? state.open.delete(id) : state.open.add(id);
+    const el = notesEl.querySelector(`[data-id="${id}"]`);
+    if (el) el.classList.toggle('open', state.open.has(id));
+    layout();
+  }
+  notesEl.addEventListener('click', (e) => {
+    const n = e.target.closest('.note-b');
+    if (n && (e.target.closest('.mark') || e.target.closest('.peek'))) toggleOpen(n.dataset.id);
+    const del = e.target.closest('.meta button');
+    if (del && del.textContent === '删除') {
+      const id = e.target.closest('.note').dataset.id;
+      const i = NOTES.findIndex((x) => x.id === id);
+      if (i > -1) NOTES.splice(i, 1);
+      anchorsOf(id).forEach((a) => a.replaceWith(...a.childNodes));
+      render();
+    }
+  });
+  textEl.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-note]');
+    if (a && window.getSelection().isCollapsed) toggleOpen(a.dataset.note);
+  });
+
+  // ---------- controls ----------
+  document.querySelectorAll('button[data-style], .about article').forEach((b) => b.addEventListener('click', () => {
+    state.style = b.dataset.style;
+    try { localStorage.setItem('ginkgo-style', state.style); } catch (e) {}
+    render();
+  }));
+  document.querySelectorAll('button[data-mode]').forEach((b) => b.addEventListener('click', () => { state.mode = b.dataset.mode; render(); }));
+
+  // ---------- select text → translate / explain / ask ----------
+  let pending = null;
+  function hidePop() { pop.hidden = true; pop.innerHTML = ''; pending = null; }
+  function showPop(range) {
+    const r = range.getBoundingClientRect();
+    pending = range.cloneRange();
+    pop.innerHTML = '<button type="button" data-act="翻译">翻译</button><button type="button" data-act="解释">解释</button><button type="button" data-act="提问">提问</button>';
+    pop.hidden = false;
+    const w = pop.offsetWidth;
+    pop.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+    pop.style.top = Math.max(8, r.top - pop.offsetHeight - 10) + 'px';
+  }
+  function onSelectEnd() {
+    setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel.rangeCount || sel.isCollapsed) return;
+      const range = sel.getRangeAt(0);
+      if (!textEl.contains(range.commonAncestorContainer)) return;
+      if (sel.toString().trim().length < 2) return;
+      showPop(range);
+    }, 0);
+  }
+  textEl.addEventListener('mouseup', onSelectEnd);
+  textEl.addEventListener('touchend', onSelectEnd);
+  document.addEventListener('mousedown', (e) => { if (!pop.contains(e.target)) hidePop(); });
+  window.addEventListener('scroll', () => { if (!pop.querySelector('input')) hidePop(); }, { passive: true });
+
+  function addNote(kind, q) {
+    if (!pending) return;
+    const text = pending.toString().trim();
+    const id = 'u' + (++state.seq);
+    const color = kind === '翻译' ? 'gold' : kind === '解释' ? 'graphite' : 'sage';
+    const span = document.createElement('span');
+    span.className = kind === '提问' ? 'anchor under' : 'hl';
+    if (kind !== '提问') span.dataset.color = color;
+    span.dataset.note = id;
+    try { pending.surroundContents(span); } catch (e) { span.appendChild(pending.extractContents()); pending.insertNode(span); }
+    const short = text.length > 28 ? text.slice(0, 28) + '…' : text;
+    const body = kind === '翻译' ? `（原型示意）这里显示「${short}」的中文翻译。`
+      : kind === '解释' ? `（原型示意）这里显示对「${short}」的解释，结合本段上下文。`
+      : `（原型示意）AI 会带上这一段和本章内容来回答这个问题。`;
+    NOTES.push({ id, kind, color, q: q || null, body });
+    state.open.add(id);
+    window.getSelection().removeAllRanges();
+    hidePop();
+    render();
+    setActive(id, true);
+    setTimeout(() => setActive(id, false), 1400);
+  }
+  pop.addEventListener('mousedown', (e) => e.preventDefault());
+  pop.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.act !== '提问') return addNote(b.dataset.act);
+    pop.innerHTML = '<input id="askInput" type="text" placeholder="想问什么？回车发送" aria-label="提问">';
+    const input = $('#askInput');
+    input.addEventListener('mousedown', (ev) => ev.stopPropagation());
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' && input.value.trim()) addNote('提问', input.value.trim());
+      if (ev.key === 'Escape') hidePop();
+    });
+    setTimeout(() => input.focus(), 0);
+  });
+
+  // logo: draw a tiny ginkgo leaf
+  $('#logo').src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#f6efe0"/><path d="M32 52c0-6 .5-9 0-12-8-.5-19-5-19-16 5 1 9-2 14-4 1.5 3 3 4 5 5 2-1 3.5-2 5-5 5 2 9 5 14 4 0 11-11 15.5-19 16" fill="#e2a52f"/></svg>');
+
+  window.addEventListener('resize', layout);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+  render();
+})();
+</script>

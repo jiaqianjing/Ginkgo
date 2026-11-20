@@ -74,3 +74,7 @@
 ## 发布
 
 大概率上 App Store（iPad 优先）。这和 SwipeSay Mac 版的站外分发（Developer ID + Sparkle）是两条路。
+
+## 原型
+
+- 批注风格对比原型：`docs/prototypes/annotation-styles.html`（在线版：https://claude.ai/artifact/9ZTug9ZHzCGXSeBY9iaSno，私有）
