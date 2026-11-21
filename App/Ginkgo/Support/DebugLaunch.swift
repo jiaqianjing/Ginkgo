@@ -11,6 +11,7 @@ import SwiftUI
 ///   (the AI notes need a key; in the simulator pass one with `SIMCTL_CHILD_OPENAI_API_KEY`).
 /// - `-orientation landscape` rotates (only in a build with UIRequiresFullScreen set).
 /// - `-demoInk YES` turns on writing and draws an underline, a loop and a margin "?" on the first page.
+/// - `-demoNotes YES` opens the notes panel after the demo notes have had time to arrive.
 /// - `-demoMode review` starts in review mode; `-demoSelect "<text>"` selects text to show the selection menu.
 enum DebugLaunch {
     static func seedIfRequested(context: ModelContext, open: (Book) -> Void) {
@@ -42,6 +43,10 @@ enum DebugLaunch {
                 model.run(.ask("银杏叶真的能防虫吗？"), on: s, color: .blue)
             }
             model.focused = nil
+        }
+        if d.bool(forKey: "demoNotes") {
+            try? await Task.sleep(for: .seconds(4))
+            model.showNotes = true
         }
         if d.bool(forKey: "demoInk") {
             model.penOn = true

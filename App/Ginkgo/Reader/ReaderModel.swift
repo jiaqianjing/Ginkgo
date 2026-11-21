@@ -199,6 +199,16 @@ final class ReaderModel {
         run(task, on: id)
     }
 
+    /// Scrolls to an annotation and opens its note.
+    func reveal(_ id: UUID) {
+        guard let pdfView, case .pdf(let a)? = annotation(id)?.anchor, let page = document.page(at: a.pageIndex) else { return }
+        let target = a.bounds.isNull ? page.bounds(for: pdfView.displayBox) : a.bounds.insetBy(dx: 0, dy: -120)
+        pdfView.go(to: target, on: page)
+        focused = id
+        if annotation(id)?.hasNote == true { peeked.insert(id); collapsed.remove(id) }
+        DispatchQueue.main.async { self.recompute() }
+    }
+
     // MARK: - Ink
 
     /// Free ink on a page (not interpreted as a gesture), stored as one record per page.

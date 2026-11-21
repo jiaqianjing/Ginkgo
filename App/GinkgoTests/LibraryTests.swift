@@ -32,3 +32,34 @@ import Testing
         #expect(record.color == .green)
     }
 }
+
+@MainActor @Suite struct ExportTests {
+    let context = ModelContext(try! ModelContainer(for: Persistence.schema,
+                                                   configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+
+    @Test func markdownListsQuotesQuestionsAndAnswers() {
+        let r = AnnotationRecord(kind: .highlight, anchor: .pdf(PDFAnchor(pageIndex: 2, rects: [], quote: "It hedges.")))
+        r.taskRaw = "ask"; r.question = "为什么？"; r.replyText = "因为冗余。"
+        let md = Exporter.markdown(title: "Book", annotations: [r])
+        #expect(md.contains("> It hedges."))
+        #expect(md.contains("第 3 页"))
+        #expect(md.contains("**提问**：为什么？"))
+        #expect(md.contains("因为冗余。"))
+    }
+
+    @Test func annotatedPDFCarriesHighlightsAndNotes() throws {
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        let sel = try #require(doc.findString("hibakujumoku", withOptions: []).first)
+        let anchor = try #require(ReaderModel.anchor(for: sel, in: doc))
+        let r = AnnotationRecord(kind: .highlight, anchor: anchor, color: .violet)
+        r.taskRaw = "explain"; r.replyText = "被爆树木。"
+        let url = try Exporter.writeAnnotatedPDF(for: book, annotations: [r])
+        let out = try #require(PDFDocument(url: url))
+        guard case .pdf(let a) = anchor else { return }
+        let types = out.page(at: a.pageIndex)!.annotations.compactMap(\.type)
+        #expect(types.contains("Highlight"))
+        #expect(types.contains("Text"))
+        Library.delete(book, from: context)
+    }
+}

@@ -80,7 +80,19 @@ private struct ReaderContent: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
-                if model.chromeVisible {
+                if model.showNotes {
+                    Color.black.opacity(0.08)
+                        .onTapGesture { withAnimation(.smooth) { model.showNotes = false } }
+                        .transition(.opacity)
+                    NotesPanel(model: model)
+                        .frame(width: min(380, geo.size.width * 0.9), height: geo.size.height - 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 22))
+                        .shadow(color: .black.opacity(0.18), radius: 24, x: -4)
+                        .position(x: geo.size.width - min(380, geo.size.width * 0.9) / 2 - 12, y: geo.size.height / 2)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+
+                if model.chromeVisible && !model.showNotes {
                     PageIndicator(index: pageIndex, count: model.document.pageCount)
                         .position(x: layout.pageWidth / 2, y: geo.size.height - geo.safeAreaInsets.bottom - 28)
                         .allowsHitTesting(false)
@@ -99,6 +111,7 @@ private struct ReaderContent: View {
         .toolbar { toolbar }
         .sheet(item: $model.asking) { AskSheet(model: model, target: $0) }
         .sheet(isPresented: $model.showSettings) { SettingsView() }
+
         .onAppear { pageIndex = model.book.lastPageIndex }
         .onPencilDoubleTap { _ in withAnimation { model.penOn.toggle() } }
         .onDisappear { model.pageInk.saveAll() }
@@ -118,6 +131,7 @@ private struct ReaderContent: View {
                    systemImage: model.penOn ? "pencil.tip.crop.circle.fill" : "pencil.tip.crop.circle") {
                 withAnimation { model.penOn.toggle() }
             }
+            Button("批注", systemImage: "list.bullet.rectangle") { withAnimation(.smooth) { model.showNotes.toggle() } }
             Button("AI 设置", systemImage: "gearshape") { model.showSettings = true }
         }
     }
