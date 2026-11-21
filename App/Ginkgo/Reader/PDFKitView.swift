@@ -16,6 +16,7 @@ struct PDFKitView: UIViewRepresentable {
         view.displaysPageBreaks = true
         view.pageShadowsEnabled = true
         view.backgroundColor = .secondarySystemBackground
+        view.pageOverlayViewProvider = model.pageInk
         view.document = model.document
         model.pdfView = view
         let doc = model.document
@@ -72,7 +73,10 @@ struct PDFKitView: UIViewRepresentable {
         @objc func geometryChanged() { model.recompute() }
 
         @objc func selectionChanged(_ note: Notification) {
-            model.selectionChanged((note.object as? PDFView)?.currentSelection)
+            let selection = (note.object as? PDFView)?.currentSelection
+            // In writing mode PDFKit drops selections we set from a Pencil loop; keep ours until the reader acts.
+            if model.penOn && selection == nil && model.selection != nil { return }
+            model.selectionChanged(selection)
         }
 
         @objc func pageChanged(_ note: Notification) {

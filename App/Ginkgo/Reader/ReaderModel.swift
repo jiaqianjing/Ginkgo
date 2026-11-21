@@ -2,6 +2,7 @@ import GinkgoAI
 import GinkgoCore
 import Observation
 import PDFKit
+import PencilKit
 import SwiftData
 import SwiftUI
 
@@ -40,6 +41,7 @@ final class ReaderModel {
     @ObservationIgnored weak var pdfView: PDFView?
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private var tasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored let pageInk = PageInk()
 
     private(set) var annotations: [AnnotationRecord] = []
     var mode: ViewMode = .reading
@@ -51,6 +53,8 @@ final class ReaderModel {
 
     private(set) var selection: PDFSelection?
     private(set) var selectionRect: CGRect?
+    /// Line rectangles of the selection, drawn by us in writing mode where PDFKit does not show it.
+    private(set) var selectionLines: [CGRect] = []
     /// The annotation whose menu is showing (tapped highlight) or whose card is active.
     var focused: UUID?
     /// Notes opened in reading mode, or folded away in review mode.
@@ -58,12 +62,25 @@ final class ReaderModel {
     var collapsed: Set<UUID> = []
     var asking: AskTarget?
     var showSettings = false
+    var showNotes = false
+    /// Writing mode: Pencil (or the mouse in the simulator) draws on the page instead of selecting text.
+    var penOn = false {
+        didSet {
+            pdfView?.isInMarkupMode = penOn
+            pageInk.drawingEnabled = penOn
+            if !penOn { pageInk.saveAll() }
+            clearSelection()
+        }
+    }
+    /// Colour used when an underline stroke becomes a highlight.
+    var penHighlightColor: HighlightColor = .yellow
 
     init(book: Book, document: PDFDocument, context: ModelContext) {
         self.book = book
         self.document = document
         self.context = context
         reload()
+        pageInk.model = self
     }
 
     // MARK: - Annotations
@@ -101,7 +118,8 @@ final class ReaderModel {
         let record = AnnotationRecord(kind: .highlight, anchor: anchor, color: color)
         record.book = book
         context.insert(record)
-        clearSelection()
+        // Only end the selection this highlight came from (a margin note may land while another is showing).
+        if selection === self.selection { clearSelection() }
         reload()
         return record
     }
@@ -181,6 +199,49 @@ final class ReaderModel {
         run(task, on: id)
     }
 
+    // MARK: - Ink
+
+    /// Free ink on a page (not interpreted as a gesture), stored as one record per page.
+    func inkDrawing(page: Int) -> PKDrawing? {
+        inkRecord(page: page)?.inkData.flatMap { try? PKDrawing(data: $0) }
+    }
+
+    func saveInk(_ drawing: PKDrawing, page: Int) {
+        let existing = inkRecord(page: page)
+        if drawing.strokes.isEmpty {
+            if let existing { context.delete(existing) }
+            return
+        }
+        let record = existing ?? {
+            let r = AnnotationRecord(kind: .ink, anchor: .pdf(PDFAnchor(pageIndex: page, rects: [], quote: "")))
+            r.book = book
+            context.insert(r)
+            return r
+        }()
+        record.inkData = drawing.dataRepresentation()
+    }
+
+    private func inkRecord(page: Int) -> AnnotationRecord? {
+        (book.annotations ?? []).first { record in
+            guard record.kind == .ink, case .pdf(let a)? = record.anchor else { return false }
+            return a.pageIndex == page
+        }
+    }
+
+    /// A question written by hand beside a line: keep the ink on the card and ask about the line.
+    func addHandwrittenQuestion(_ ink: PKDrawing, recognized: String, on line: PDFSelection) {
+        guard let record = highlight(line, color: .blue) else { return }
+        record.inkData = ink.dataRepresentation()
+        let text = recognized.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty {
+            record.question = "（没认出手写内容）"
+            run(.explain, on: record.id)
+            record.question = "（没认出手写内容）"
+        } else {
+            run(.handwritten(text), on: record.id)
+        }
+    }
+
     // MARK: - Selection
 
     func selectionChanged(_ selection: PDFSelection?) {
@@ -194,6 +255,7 @@ final class ReaderModel {
         pdfView?.clearSelection()
         selection = nil
         selectionRect = nil
+        selectionLines = []
     }
 
     // MARK: - Geometry
@@ -214,8 +276,14 @@ final class ReaderModel {
     }
 
     private func recomputeSelectionRect() {
-        guard let pdfView, let selection, let page = selection.pages.first else { selectionRect = nil; return }
+        guard let pdfView, let selection, let page = selection.pages.first else {
+            selectionRect = nil
+            selectionLines = []
+            return
+        }
         selectionRect = pdfView.convert(selection.bounds(for: page), from: page)
+        selectionLines = selection.selectionsByLine().filter { $0.pages.first == page }
+            .map { pdfView.convert($0.bounds(for: page), from: page) }
     }
 
     /// The annotation under a point in reader coordinates, if any.

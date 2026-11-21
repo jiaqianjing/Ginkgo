@@ -1,4 +1,5 @@
 import GinkgoCore
+import PencilKit
 import SwiftUI
 
 // MARK: - Marks on the text
@@ -10,6 +11,12 @@ struct MarksLayer: View {
 
     var body: some View {
         Canvas { ctx, _ in
+            if model.penOn {
+                for line in model.selectionLines {
+                    ctx.fill(Path(roundedRect: line.insetBy(dx: -1, dy: -1), cornerRadius: 2),
+                             with: .color(Color.accentColor.opacity(0.28)))
+                }
+            }
             for record in model.annotations {
                 guard let g = model.geometry[record.id] else { continue }
                 let focused = model.focused == record.id
@@ -53,7 +60,12 @@ struct NoteCard: View {
                     ThinkingDots(color: record.color.ink)
                 }
             }
-            if let q = record.question, !q.isEmpty {
+            if let data = record.inkData, let ink = try? PKDrawing(data: data) {
+                InkImage(drawing: ink, maxWidth: width - 28)
+                if let q = record.question, !q.isEmpty {
+                    Text("“\(q)”").font(.caption).foregroundStyle(.secondary)
+                }
+            } else if let q = record.question, !q.isEmpty {
                 Text(q)
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.primary)

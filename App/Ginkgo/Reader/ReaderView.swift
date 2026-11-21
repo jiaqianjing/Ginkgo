@@ -1,3 +1,4 @@
+import GinkgoCore
 import PDFKit
 import SwiftData
 import SwiftUI
@@ -57,6 +58,11 @@ private struct ReaderContent: View {
                 Group {
                     if layout.hasMarginColumn {
                         ConnectorLayer(model: model, layout: layout).allowsHitTesting(false)
+                        if model.penOn {
+                            MarginInkCanvas(model: model, layout: layout)
+                                .frame(width: layout.marginWidth, height: geo.size.height)
+                                .offset(x: layout.pageWidth)
+                        }
                         SidenoteColumn(model: model, layout: layout)
                     } else {
                         FoldedNotesLayer(model: model, layout: layout)
@@ -67,6 +73,12 @@ private struct ReaderContent: View {
 
                 SelectionMenu(model: model, layout: layout)
                 AnnotationMenu(model: model, layout: layout)
+
+                if model.penOn {
+                    PenBanner(color: $model.penHighlightColor) { model.penOn = false }
+                        .position(x: layout.pageWidth / 2, y: 34)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
 
                 if model.chromeVisible {
                     PageIndicator(index: pageIndex, count: model.document.pageCount)
@@ -88,6 +100,8 @@ private struct ReaderContent: View {
         .sheet(item: $model.asking) { AskSheet(model: model, target: $0) }
         .sheet(isPresented: $model.showSettings) { SettingsView() }
         .onAppear { pageIndex = model.book.lastPageIndex }
+        .onPencilDoubleTap { _ in withAnimation { model.penOn.toggle() } }
+        .onDisappear { model.pageInk.saveAll() }
         .task { await DebugLaunch.annotateIfRequested(model) }
     }
 
@@ -100,6 +114,10 @@ private struct ReaderContent: View {
             .frame(width: 140)
         }
         ToolbarItemGroup(placement: .primaryAction) {
+            Button(model.penOn ? "停止书写" : "用笔书写",
+                   systemImage: model.penOn ? "pencil.tip.crop.circle.fill" : "pencil.tip.crop.circle") {
+                withAnimation { model.penOn.toggle() }
+            }
             Button("AI 设置", systemImage: "gearshape") { model.showSettings = true }
         }
     }
@@ -107,6 +125,36 @@ private struct ReaderContent: View {
     private func pageChanged(_ index: Int) {
         pageIndex = index
         model.book.lastPageIndex = index
+    }
+}
+
+/// Shown while writing: what the Pencil gestures do, the underline colour, and a way out.
+private struct PenBanner: View {
+    @Binding var color: HighlightColor
+    var done: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "pencil.tip").foregroundStyle(.secondary)
+            Text("划线高亮 · 圈选提问 · 页边写字提问")
+                .font(.footnote)
+            Divider().frame(height: 18)
+            ForEach(HighlightColor.allCases, id: \.self) { c in
+                Button { color = c } label: {
+                    Circle().fill(c.fill)
+                        .overlay { Circle().strokeBorder(c.ink, lineWidth: color == c ? 2 : 0) }
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(c.name)色")
+            }
+            Divider().frame(height: 18)
+            Button("完成", action: done).font(.footnote.weight(.semibold))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .fixedSize()
     }
 }
 

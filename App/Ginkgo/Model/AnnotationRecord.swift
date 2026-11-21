@@ -38,8 +38,8 @@ final class AnnotationRecord {
         set { replyStateRaw = newValue.rawValue }
     }
 
-    /// Has a margin note (an AI task or a handwritten question), not just a mark on the text.
-    var hasNote: Bool { taskRaw != nil || question != nil || inkData != nil }
+    /// Has a margin note (an AI task or a handwritten question), not just a mark on the text or free ink.
+    var hasNote: Bool { kind != .ink && (taskRaw != nil || question != nil) }
 
     var taskLabel: String {
         switch taskRaw {

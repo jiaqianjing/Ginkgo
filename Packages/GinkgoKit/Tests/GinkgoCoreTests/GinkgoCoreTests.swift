@@ -42,3 +42,50 @@ import Testing
         #expect(tops["late"] == 100)
     }
 }
+
+@Suite struct StrokeClassifierTests {
+    // Three text lines in a column from x=60 to x=380.
+    let lines = [CGRect(x: 60, y: 100, width: 320, height: 16),
+                 CGRect(x: 60, y: 122, width: 320, height: 16),
+                 CGRect(x: 60, y: 144, width: 300, height: 16)]
+    let column = CGRect(x: 60, y: 100, width: 320, height: 60)
+
+    @Test func flatStrokeUnderALineIsAnUnderline() {
+        let pts = stride(from: 90.0, through: 240.0, by: 10).map { CGPoint(x: $0, y: 139 + sin($0) ) }
+        guard case .underline(let line, let start, let end) = StrokeClassifier.classify(points: pts, textLines: lines, textColumn: column) else {
+            Issue.record("expected underline"); return
+        }
+        #expect(line == lines[1])
+        #expect(start == 90 && end == 240)
+    }
+
+    @Test func backAndForthScribbleIsInk() {
+        let pts = (0..<20).map { CGPoint(x: $0 % 2 == 0 ? 100 : 200, y: 130 + Double($0) * 0.2) }
+        #expect(StrokeClassifier.classify(points: pts, textLines: lines, textColumn: column) == .ink)
+    }
+
+    @Test func closedLoopAroundTextIsACircle() {
+        let pts = (0...40).map { i -> CGPoint in
+            let a = Double(i) / 40 * 2 * .pi
+            return CGPoint(x: 200 + cos(a) * 60, y: 130 + sin(a) * 25)
+        }
+        guard case .circle = StrokeClassifier.classify(points: pts, textLines: lines, textColumn: column) else {
+            Issue.record("expected circle"); return
+        }
+    }
+
+    @Test func flatLoopAroundAPhraseIsACircle() {
+        let pts = (0...36).map { i -> CGPoint in
+            let a = Double(i) / 36 * 2 * .pi
+            return CGPoint(x: 150 + cos(a) * 62, y: 130 + sin(a) * 13)
+        }
+        guard case .circle = StrokeClassifier.classify(points: pts, textLines: lines, textColumn: column) else {
+            Issue.record("expected circle"); return
+        }
+    }
+
+    @Test func writingBesideTheColumnIsAMarginNote() {
+        let pts = [CGPoint(x: 400, y: 120), CGPoint(x: 420, y: 135), CGPoint(x: 410, y: 150)]
+        #expect(StrokeClassifier.classify(points: pts, textLines: lines, textColumn: column) == .marginNote(nearLine: lines[1]))
+    }
+}

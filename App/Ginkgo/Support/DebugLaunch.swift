@@ -10,6 +10,7 @@ import SwiftUI
 /// - `-demoAnnotate YES` adds a highlight, a translation, an explanation and a question to the open book
 ///   (the AI notes need a key; in the simulator pass one with `SIMCTL_CHILD_OPENAI_API_KEY`).
 /// - `-orientation landscape` rotates (only in a build with UIRequiresFullScreen set).
+/// - `-demoInk YES` turns on writing and draws an underline, a loop and a margin "?" on the first page.
 /// - `-demoMode review` starts in review mode; `-demoSelect "<text>"` selects text to show the selection menu.
 enum DebugLaunch {
     static func seedIfRequested(context: ModelContext, open: (Book) -> Void) {
@@ -41,6 +42,11 @@ enum DebugLaunch {
                 model.run(.ask("银杏叶真的能防虫吗？"), on: s, color: .blue)
             }
             model.focused = nil
+        }
+        if d.bool(forKey: "demoInk") {
+            model.penOn = true
+            try? await Task.sleep(for: .seconds(0.6))
+            model.pageInk.drawDemoStrokes(page: 0)
         }
         if let text = d.string(forKey: "demoSelect"), let s = find(text) {
             model.pdfView?.currentSelection = s
