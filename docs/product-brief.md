@@ -75,10 +75,18 @@ Ginkgo 不依赖 SwipeSay 的任何代码，两个项目各自保持干净。Swi
 
 ## 原型
 
-- 批注风格对比原型：`docs/prototypes/annotation-styles.html`（在线版：https://claude.ai/artifact/9ZTug9ZHzCGXSeBY9iaSno，私有）
+- 批注风格对比原型（网页，第一版）：`docs/prototypes/annotation-styles.html`（在线版：https://claude.ai/artifact/9ZTug9ZHzCGXSeBY9iaSno，私有）
+- 批注风格原型（原生，第二版）：`Prototype/`，SwiftUI + PDFKit，跑在 iPad 模拟器里。三种风格、阅读 / 回顾模式可以切换；选中文字可以翻译 / 解释 / 提问（回答是示意文字）；开启页边书写后，手写的问题会挂到旁边那一行。说明见 `Prototype/README.md`。
 
 ## 用户反馈与下一步（2026-11-20）
 
 - **图标第一版不好看**，需要重做。可以考虑用 Apple 的 Icon Composer 做分层的 Liquid Glass 图标，先多出几个方向让用户挑。
 - **网页原型看起来奇怪，体会不到在 iPad 上的状态和交互。** 下一版原型建议直接用 SwiftUI 写，跑在 iPad 模拟器里：用真实的 PDFKit 页面、真实的横竖屏和尺寸，三种批注风格做成可以切换的开关。手势先用手指或鼠标模拟，Pencil 的手感最后要在真机上验证。
 - 三种批注风格（A 页边旁注 / B 一线一卡 / C 手写回应）还没有选定。
+
+## 新增决策（2026-11-21）
+
+- **批注风格：横屏用 A（页边旁注），竖屏用 B（一道线一张卡）。** 横屏有空间做页边栏，卡片和原文对齐、用细线连回去；竖屏没有页边，平时只留色条，点开才是卡片。C 的手写笔迹保留下来，作为 A / B 里的一种卡片内容（问题是手写的，回答排在下面）。
+- **AI 接入：用户自带 API key。** 在设置里填 OpenAI / Gemini / Anthropic 的 key，存在钥匙串里，App 直接调用，不做自己的服务器。以后需要再考虑订阅制。
+- **图标已定稿：** 柠檬黄底上的奶油色纸页，加一张蓝紫色玻璃页签（由用户和 codex 设计，Icon Composer 文件）。
+- 原生原型完成了它的使命，保留在 `Prototype/` 作参考；正式 App 另起工程。
