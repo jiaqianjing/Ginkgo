@@ -23,6 +23,8 @@ targets:
     dependencies:
       - package: GinkgoKit
         product: GinkgoCore
+      - package: GinkgoKit
+        product: GinkgoAI
     info:
       path: Ginkgo/Info.plist
       properties:

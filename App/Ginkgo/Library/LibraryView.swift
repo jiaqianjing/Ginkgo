@@ -10,6 +10,7 @@ struct LibraryView: View {
     @State private var path: [Book] = []
     @State private var importError: String?
     @State private var dropTargeted = false
+    @State private var showSettings = false
 
     private var shelf: [Book] { books.sorted { $0.recency > $1.recency } }
 
@@ -24,7 +25,8 @@ struct LibraryView: View {
             }
             .navigationTitle("书库")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button("AI 设置", systemImage: "gearshape") { showSettings = true }
                     Button("导入 PDF", systemImage: "plus") { importing = true }
                 }
             }
@@ -43,6 +45,7 @@ struct LibraryView: View {
         } message: {
             Text(importError ?? "")
         }
+        .sheet(isPresented: $showSettings) { SettingsView() }
         .task { DebugLaunch.seedIfRequested(context: context, open: { path = [$0] }) }
     }
 

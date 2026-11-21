@@ -1,20 +1,18 @@
 import PDFKit
+import SwiftData
 import SwiftUI
 
-/// Reading screen. A tap toggles the chrome; the position is remembered per book.
+/// Reading screen. Opens the book's file, then hands over to `ReaderContent`.
 struct ReaderView: View {
     let book: Book
-    @State private var document: PDFDocument?
-    @State private var pageIndex = 0
-    @State private var chromeVisible = true
+    @Environment(\.modelContext) private var context
+    @State private var model: ReaderModel?
     @State private var missing = false
 
     var body: some View {
         Group {
-            if let document {
-                PDFKitView(document: document, initialPage: book.lastPageIndex,
-                           onPageChange: pageChanged, onTap: toggleChrome)
-                    .ignoresSafeArea()
+            if let model {
+                ReaderContent(model: model)
             } else if missing {
                 ContentUnavailableView("找不到这本书的文件", systemImage: "exclamationmark.triangle",
                                        description: Text("文件可能已被删除。可以从书库里删掉它，再重新导入。"))
@@ -22,39 +20,104 @@ struct ReaderView: View {
                 ProgressView()
             }
         }
-        .background(Color(uiColor: .secondarySystemBackground))
         .navigationTitle(book.title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(chromeVisible ? .visible : .hidden, for: .navigationBar)
-        .statusBarHidden(!chromeVisible)
-        .overlay(alignment: .bottom) {
-            if chromeVisible, document != nil {
-                PageIndicator(index: pageIndex, count: book.pageCount)
-                    .padding(.bottom, 20)
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: chromeVisible)
         .task(id: book.id) { open() }
     }
 
     private func open() {
-        guard document == nil else { return }
-        if let doc = PDFDocument(url: book.fileURL) {
-            document = doc
-            pageIndex = min(book.lastPageIndex, max(doc.pageCount - 1, 0))
-            book.lastOpenedAt = .now
-        } else {
-            missing = true
+        guard model == nil else { return }
+        guard let document = PDFDocument(url: book.fileURL) else { missing = true; return }
+        book.lastOpenedAt = .now
+        model = ReaderModel(book: book, document: document, context: context)
+    }
+}
+
+private struct ReaderContent: View {
+    @Bindable var model: ReaderModel
+    @State private var pageIndex = 0
+
+    var body: some View {
+        GeometryReader { geo in
+            let layout = ReaderLayout(size: geo.size)
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 0) {
+                    PDFKitView(model: model, onPageChange: pageChanged)
+                        .frame(width: layout.pageWidth)
+                    if layout.hasMarginColumn {
+                        MarginBackground().frame(width: layout.marginWidth)
+                    }
+                }
+
+                MarksLayer(model: model)
+                    .frame(width: layout.pageWidth, height: geo.size.height)
+                    .clipped()
+                    .allowsHitTesting(false)
+
+                Group {
+                    if layout.hasMarginColumn {
+                        ConnectorLayer(model: model, layout: layout).allowsHitTesting(false)
+                        SidenoteColumn(model: model, layout: layout)
+                    } else {
+                        FoldedNotesLayer(model: model, layout: layout)
+                    }
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+                .clipped()
+
+                SelectionMenu(model: model, layout: layout)
+                AnnotationMenu(model: model, layout: layout)
+
+                if model.chromeVisible {
+                    PageIndicator(index: pageIndex, count: model.document.pageCount)
+                        .position(x: layout.pageWidth / 2, y: geo.size.height - geo.safeAreaInsets.bottom - 28)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .animation(.smooth(duration: 0.3), value: model.mode)
+            .animation(.smooth(duration: 0.3), value: layout.hasMarginColumn)
+            .onChange(of: layout.hasMarginColumn) { _, _ in DispatchQueue.main.async { model.recompute() } }
+        }
+        .ignoresSafeArea(edges: [.horizontal, .bottom])
+        .background(Color(uiColor: .secondarySystemBackground))
+        .toolbarVisibility(model.chromeVisible ? .visible : .hidden, for: .navigationBar)
+        .statusBarHidden(!model.chromeVisible)
+        .toolbar { toolbar }
+        .sheet(item: $model.asking) { AskSheet(model: model, target: $0) }
+        .sheet(isPresented: $model.showSettings) { SettingsView() }
+        .onAppear { pageIndex = model.book.lastPageIndex }
+        .task { await DebugLaunch.annotateIfRequested(model) }
+    }
+
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Picker("模式", selection: $model.mode) {
+                ForEach(ViewMode.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 140)
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button("AI 设置", systemImage: "gearshape") { model.showSettings = true }
         }
     }
 
     private func pageChanged(_ index: Int) {
         pageIndex = index
-        book.lastPageIndex = index
+        model.book.lastPageIndex = index
     }
+}
 
-    private func toggleChrome() { chromeVisible.toggle() }
+private struct MarginBackground: View {
+    var body: some View {
+        Rectangle()
+            .fill(Color(uiColor: .systemGroupedBackground))
+            .overlay(alignment: .leading) {
+                Rectangle().fill(Color.primary.opacity(0.06)).frame(width: 0.5)
+            }
+    }
 }
 
 private struct PageIndicator: View {

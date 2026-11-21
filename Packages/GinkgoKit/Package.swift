@@ -7,9 +7,12 @@ let package = Package(
     platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
         .library(name: "GinkgoCore", targets: ["GinkgoCore"]),
+        .library(name: "GinkgoAI", targets: ["GinkgoAI"]),
     ],
     targets: [
         .target(name: "GinkgoCore"),
         .testTarget(name: "GinkgoCoreTests", dependencies: ["GinkgoCore"]),
+        .target(name: "GinkgoAI"),
+        .testTarget(name: "GinkgoAITests", dependencies: ["GinkgoAI"]),
     ]
 )
