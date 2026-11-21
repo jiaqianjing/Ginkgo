@@ -1,0 +1,56 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "solid": "extended-srgb:1.00000,0.94118,0.21961,1.00000"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "extended-srgb:0.12157,0.12549,0.17255,1.00000"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "Margin tab",
+      "layers": [
+        {
+          "name": "Periwinkle annotation tab",
+          "image-name": "tab.png",
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.24
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    },
+    {
+      "name": "Paper",
+      "layers": [
+        {
+          "name": "Cream page",
+          "image-name": "paper.png",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.22
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}
