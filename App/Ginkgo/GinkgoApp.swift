@@ -12,6 +12,8 @@ struct GinkgoApp: App {
     var body: some Scene {
         WindowGroup {
             LibraryView()
+                .tint(Theme.accent)
+                .foregroundStyle(Theme.ink)
         }
         .modelContainer(container)
     }

@@ -96,3 +96,29 @@ struct LiveProviderTests {
         #expect(try await answer(kind, key: key).count > 4)
     }
 }
+
+@Suite struct AIErrorMessageTests {
+    @Test func quotaWithRetryHintIsShortChinese() {
+        let gemini = "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. * Quota exceeded for metric: generate_content_free_tier_requests, limit: 20\nPlease retry in 14382.5s."
+        let error = AIError.http(status: 429, message: gemini)
+        #expect(error.errorDescription == "额度用完了，约 4 小时后可以再试。")
+        #expect(error.detail == gemini)
+    }
+
+    @Test func rateLimitWithoutHint() {
+        #expect(AIError.http(status: 429, message: "Rate limit reached").errorDescription == "请求太频繁，稍后再试。")
+        #expect(AIError.http(status: 429, message: "Please try again in 20s").errorDescription == "请求太频繁，约 20 秒后可以再试。")
+    }
+
+    @Test func authErrorKeepsSettingsHintAndDropsDetail() {
+        let text = AIError.http(status: 401, message: String(repeating: "x", count: 500)).errorDescription ?? ""
+        #expect(text.contains("API key"))
+        #expect(text.count < 40)
+    }
+
+    @Test func unknownStatusClipsProviderMessage() {
+        let text = AIError.http(status: 400, message: String(repeating: "a", count: 300) + "\nmore").errorDescription ?? ""
+        #expect(text.count < 100)
+        #expect(text.hasSuffix("…"))
+    }
+}

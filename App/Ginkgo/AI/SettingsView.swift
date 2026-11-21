@@ -30,7 +30,7 @@ struct SettingsView: View {
                 } header: {
                     Text("AI 服务")
                 } footer: {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: Theme.Space.compact) {
                         Text("Key 只保存在这台设备的钥匙串里，App 直接调用服务商，不经过任何中间服务器。")
                         Link("去 \(settings.provider.displayName) 创建 key", destination: settings.provider.keyPage)
                     }
@@ -46,15 +46,15 @@ struct SettingsView: View {
                             switch testState {
                             case .idle: EmptyView()
                             case .running: ProgressView()
-                            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                            case .failed: Image(systemName: "xmark.octagon.fill").foregroundStyle(.red)
+                            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
+                            case .failed: Image(systemName: "xmark.octagon.fill").foregroundStyle(Theme.error)
                             }
                         }
                     }
                     .disabled(testState == .running)
                     switch testState {
-                    case .ok(let text): Text(text).font(.callout).foregroundStyle(.secondary)
-                    case .failed(let text): Text(text).font(.callout).foregroundStyle(.red)
+                    case .ok(let text): Text(text).font(Theme.calloutFont).foregroundStyle(Theme.secondaryInk)
+                    case .failed(let text): Text(text).font(Theme.calloutFont).foregroundStyle(Theme.error)
                     default: EmptyView()
                     }
                 }
@@ -65,6 +65,8 @@ struct SettingsView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.paper)
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

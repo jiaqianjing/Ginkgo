@@ -15,7 +15,7 @@ struct PDFKitView: UIViewRepresentable {
         view.displayDirection = .vertical
         view.displaysPageBreaks = true
         view.pageShadowsEnabled = true
-        view.backgroundColor = .secondarySystemBackground
+        view.backgroundColor = UIColor(Theme.desk)
         view.pageOverlayViewProvider = model.pageInk
         view.document = model.document
         model.pdfView = view

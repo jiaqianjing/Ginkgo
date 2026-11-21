@@ -55,6 +55,14 @@ private struct ReaderContent: View {
                     .clipped()
                     .allowsHitTesting(false)
 
+                // Below the notes, so a card near the bottom covers the folio instead of the other way round.
+                if model.chromeVisible && !model.showNotes {
+                    PageIndicator(index: pageIndex, count: model.document.pageCount)
+                        .position(x: layout.pageWidth / 2, y: geo.size.height - geo.safeAreaInsets.bottom - 28)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+
                 Group {
                     if layout.hasMarginColumn {
                         ConnectorLayer(model: model, layout: layout).allowsHitTesting(false)
@@ -76,28 +84,25 @@ private struct ReaderContent: View {
 
                 if model.penOn {
                     PenBanner(color: $model.penHighlightColor) { model.penOn = false }
-                        .position(x: layout.pageWidth / 2, y: 34)
+                        .frame(maxWidth: layout.pageWidth - Theme.menuInset * 2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, Theme.cardInset)
+                        .frame(width: layout.pageWidth)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 if model.showNotes {
-                    Color.black.opacity(0.08)
+                    Theme.panelShade
                         .onTapGesture { withAnimation(.smooth) { model.showNotes = false } }
                         .transition(.opacity)
                     NotesPanel(model: model)
-                        .frame(width: min(380, geo.size.width * 0.9), height: geo.size.height - 24)
-                        .clipShape(RoundedRectangle(cornerRadius: 22))
-                        .shadow(color: .black.opacity(0.18), radius: 24, x: -4)
-                        .position(x: geo.size.width - min(380, geo.size.width * 0.9) / 2 - 12, y: geo.size.height / 2)
+                        .frame(width: min(Theme.panelWidth, geo.size.width * 0.9), height: geo.size.height - 24)
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.panelRadius))
+                        .shadow(color: Theme.panelShadowColor, radius: Theme.panelShadow, x: Theme.panelShadowX)
+                        .position(x: geo.size.width - min(Theme.panelWidth, geo.size.width * 0.9) / 2 - 12, y: geo.size.height / 2)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
 
-                if model.chromeVisible && !model.showNotes {
-                    PageIndicator(index: pageIndex, count: model.document.pageCount)
-                        .position(x: layout.pageWidth / 2, y: geo.size.height - geo.safeAreaInsets.bottom - 28)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .animation(.smooth(duration: 0.3), value: model.mode)
@@ -105,7 +110,7 @@ private struct ReaderContent: View {
             .onChange(of: layout.hasMarginColumn) { _, _ in DispatchQueue.main.async { model.recompute() } }
         }
         .ignoresSafeArea(edges: [.horizontal, .bottom])
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(Theme.desk)
         .toolbarVisibility(model.chromeVisible ? .visible : .hidden, for: .navigationBar)
         .statusBarHidden(!model.chromeVisible)
         .toolbar { toolbar }
@@ -148,36 +153,48 @@ private struct PenBanner: View {
     var done: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "pencil.tip").foregroundStyle(.secondary)
-            Text("划线高亮 · 圈选提问 · 页边写字提问")
-                .font(.footnote)
-            Divider().frame(height: 18)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.cardInset) { instructions; controls }
+            VStack(spacing: Theme.rhythm) { instructions; controls }
+        }
+        .padding(.horizontal, Theme.cardInset)
+        .padding(.vertical, Theme.rhythm)
+        .glassEffect(.regular.tint(Theme.glassTint).interactive(), in: .rect(cornerRadius: Theme.panelRadius))
+    }
+
+    private var instructions: some View {
+        Label("划线高亮 · 圈选提问 · 页边写字提问", systemImage: "pencil.tip")
+            .font(Theme.footnoteFont)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var controls: some View {
+        HStack(spacing: Theme.rhythm) {
             ForEach(HighlightColor.allCases, id: \.self) { c in
                 Button { color = c } label: {
                     Circle().fill(c.fill)
                         .overlay { Circle().strokeBorder(c.ink, lineWidth: color == c ? 2 : 0) }
-                        .frame(width: 18, height: 18)
+                        .overlay { if color == c { Image(systemName: "checkmark").font(Theme.checkFont).foregroundStyle(Theme.swatchInk) } }
+                        .frame(width: Theme.swatchSize, height: Theme.swatchSize)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(c.name)色")
+                .accessibilityAddTraits(color == c ? .isSelected : [])
             }
-            Divider().frame(height: 18)
-            Button("完成", action: done).font(.footnote.weight(.semibold))
+            Divider().frame(height: Theme.swatchSize)
+            Button("完成", action: done).font(Theme.doneFont)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .glassEffect(.regular.interactive(), in: .capsule)
-        .fixedSize()
     }
+
 }
 
 private struct MarginBackground: View {
     var body: some View {
         Rectangle()
-            .fill(Color(uiColor: .systemGroupedBackground))
+            .fill(Theme.margin)
             .overlay(alignment: .leading) {
-                Rectangle().fill(Color.primary.opacity(0.06)).frame(width: 0.5)
+                Rectangle().fill(Theme.rule).frame(width: Theme.hairline)
             }
     }
 }
@@ -188,9 +205,10 @@ private struct PageIndicator: View {
 
     var body: some View {
         Text("\(index + 1) / \(count)")
-            .font(.footnote.monospacedDigit())
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .glassEffect(.regular, in: .capsule)
+            .font(Theme.labelFont.monospacedDigit())
+            .foregroundStyle(.primary)
+            .padding(.horizontal, Theme.Space.generous)
+            .padding(.vertical, Theme.folioVerticalInset)
+            .glassEffect(.regular.tint(Theme.glassTint), in: .capsule)
     }
 }

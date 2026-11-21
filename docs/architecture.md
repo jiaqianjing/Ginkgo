@@ -82,7 +82,7 @@ Ginkgo/
 
 ### 视觉设计
 
-先用系统控件和 iOS 26 默认的 Liquid Glass 把交互做对。页面视觉，包括配色、字体、卡片样式，按 `CLAUDE.md` 的分工交给 codex 或 agy 出稿，我按产品简报审核后再接入。图标用已定稿的 `Ginkgo-Lemon.icon`。
+界面采用系统控件和 iOS 26 Liquid Glass。视觉参数集中在 `App/Ginkgo/Design/Theme.swift`，覆盖纸面配色、系统字体、间距、圆角、阴影和五色高亮。玻璃仅用于浮动操作；批注使用纸色卡片。当前方案由 Codex 在 `codex/visual-design` 上实现，等待按产品简报审核；说明与截图见 [`design/`](design/README.md)。图标保留已定稿的 `App/Ginkgo/AppIcon.icon`。
 
 ## 阶段
 

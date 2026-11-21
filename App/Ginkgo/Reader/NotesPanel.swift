@@ -36,28 +36,28 @@ struct NotesPanel: View {
             // Own header: a NavigationStack here would nest inside the reader's and pop it.
             HStack {
                 Button { withAnimation(.smooth) { model.showNotes = false } } label: {
-                    Image(systemName: "xmark").font(.body.weight(.semibold)).frame(width: 36, height: 36)
+                    Image(systemName: "xmark").font(Theme.panelIconFont).frame(width: Theme.panelControlSize, height: Theme.panelControlSize)
                 }
                 .accessibilityLabel("关闭")
                 Spacer()
-                Text("批注").font(.headline)
+                Text("批注").font(Theme.titleFont)
                 Spacer()
                 Menu {
                     Button("Markdown 笔记", systemImage: "doc.plaintext") { export { try Exporter.writeMarkdown(for: model.book, annotations: model.annotations) } }
                     Button("带批注的 PDF", systemImage: "doc.richtext") { export { try Exporter.writeAnnotatedPDF(for: model.book, annotations: model.annotations) } }
                 } label: {
-                    Image(systemName: "square.and.arrow.up").font(.body.weight(.semibold)).frame(width: 36, height: 36)
+                    Image(systemName: "square.and.arrow.up").font(Theme.panelIconFont).frame(width: Theme.panelControlSize, height: Theme.panelControlSize)
                 }
                 .accessibilityLabel("导出")
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 10)
+            .padding(.horizontal, Theme.rhythm)
+            .padding(.top, Theme.rhythm)
             Picker("筛选", selection: $filter) {
                 ForEach(Filter.allCases) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, Theme.cardInset)
+            .padding(.vertical, Theme.rhythm)
             if items.isEmpty {
                 ContentUnavailableView("还没有批注", systemImage: "highlighter",
                                        description: Text("选中文字后高亮或向 AI 提问，批注会按页码出现在这里。"))
@@ -76,7 +76,7 @@ struct NotesPanel: View {
                 .scrollContentBackground(.hidden)
             }
         }
-        .background(Color(uiColor: .systemBackground))
+        .background(Theme.paper)
         .sheet(item: $shareURL) { ShareSheet(url: $0) }
         .alert("导出失败", isPresented: Binding(get: { exportError != nil }, set: { if !$0 { exportError = nil } })) {
             Button("好", role: .cancel) {}
@@ -93,35 +93,36 @@ private struct NoteRow: View {
     let record: AnnotationRecord
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            RoundedRectangle(cornerRadius: 2).fill(record.color.fill).frame(width: 4)
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .top, spacing: Theme.Space.medium) {
+            RoundedRectangle(cornerRadius: Theme.Card.ruleRadius).fill(record.color.ink.opacity(Theme.Card.ruleOpacity)).frame(width: Theme.noteRuleWidth)
+            VStack(alignment: .leading, spacing: Theme.Space.compact) {
                 HStack {
                     if record.hasNote {
-                        Text(record.taskLabel).font(.caption.weight(.semibold)).foregroundStyle(record.color.ink)
+                        Text(record.taskLabel).font(Theme.metadataFont).foregroundStyle(record.color.ink)
                     }
                     Spacer()
                     if case .pdf(let a)? = record.anchor {
-                        Text("第 \(a.pageIndex + 1) 页").font(.caption).foregroundStyle(.secondary)
+                        Text("第 \(a.pageIndex + 1) 页").font(Theme.captionFont).foregroundStyle(Theme.secondaryInk)
                     }
                 }
                 Text(record.anchor?.quote ?? "")
-                    .font(.system(.subheadline, design: .serif))
+                    .font(Theme.noteFont)
                     .lineLimit(3)
                 if let q = record.question, !q.isEmpty, record.inkData == nil {
-                    Text(q).font(.footnote.weight(.medium))
+                    Text(q).font(Theme.actionFont)
                 }
                 if let data = record.inkData, let ink = try? PKDrawing(data: data) {
                     InkImage(drawing: ink, maxWidth: 160)
+                        .modifier(NoteInkAppearance())
                 }
                 if let reply = record.replyText, !reply.isEmpty {
-                    Text(reply).font(.footnote).foregroundStyle(.secondary).lineLimit(4)
+                    Text(reply).font(Theme.footnoteFont).foregroundStyle(Theme.secondaryInk).lineLimit(4)
                 } else if record.replyState == .failed {
-                    Text(record.replyError ?? "没有拿到回答").font(.footnote).foregroundStyle(.red).lineLimit(2)
+                    Text(record.replyError ?? "没有拿到回答").font(Theme.footnoteFont).foregroundStyle(Theme.error).lineLimit(2)
                 }
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, Theme.rhythm)
         .contentShape(Rectangle())
     }
 }

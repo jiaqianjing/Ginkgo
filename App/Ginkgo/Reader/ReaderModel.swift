@@ -1,6 +1,7 @@
 import GinkgoAI
 import GinkgoCore
 import Observation
+import OSLog
 import PDFKit
 import PencilKit
 import SwiftData
@@ -36,6 +37,7 @@ enum AskTarget: Identifiable {
 /// State of one open book: its annotations, where they are on screen, and the AI requests in flight.
 @Observable
 final class ReaderModel {
+    private static let log = Logger(subsystem: "com.kenjia.ginkgo", category: "ai")
     let book: Book
     let document: PDFDocument
     @ObservationIgnored weak var pdfView: PDFView?
@@ -182,6 +184,7 @@ final class ReaderModel {
                 return
             } catch {
                 record.replyError = error.localizedDescription
+                if let detail = (error as? AIError)?.detail { Self.log.error("AI request failed: \(detail, privacy: .public)") }
                 record.replyState = .failed
             }
             try? self?.context.save()
@@ -329,26 +332,10 @@ final class ReaderModel {
 }
 
 extension HighlightColor {
-    var fill: Color {
-        switch self {
-        case .yellow: Color(red: 1.0, green: 0.84, blue: 0.25)
-        case .green: Color(red: 0.55, green: 0.85, blue: 0.45)
-        case .blue: Color(red: 0.45, green: 0.72, blue: 1.0)
-        case .pink: Color(red: 1.0, green: 0.55, blue: 0.68)
-        case .violet: Color(red: 0.62, green: 0.56, blue: 0.98)
-        }
-    }
+    var fill: Color { Theme.highlight(self) }
 
-    /// Darker tone for rules, ticks and labels.
-    var ink: Color {
-        switch self {
-        case .yellow: Color(red: 0.78, green: 0.55, blue: 0.0)
-        case .green: Color(red: 0.2, green: 0.55, blue: 0.2)
-        case .blue: Color(red: 0.12, green: 0.42, blue: 0.82)
-        case .pink: Color(red: 0.82, green: 0.22, blue: 0.4)
-        case .violet: Color(red: 0.4, green: 0.32, blue: 0.86)
-        }
-    }
+    /// Adaptive ink for labels and connectors, separate from the marker on white PDF paper.
+    var ink: Color { Theme.highlightInk(self) }
 
     var name: String {
         switch self {

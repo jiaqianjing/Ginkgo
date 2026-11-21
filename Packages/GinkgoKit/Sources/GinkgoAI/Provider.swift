@@ -61,19 +61,50 @@ public enum AIError: LocalizedError, Equatable {
     case refused
     case empty
 
+    /// One short line for a margin card. The provider's own message stays in `detail`.
     public var errorDescription: String? {
         switch self {
         case .missingKey: "还没有填写 API key。请在设置里填好再试。"
         case .http(let status, let message):
             switch status {
-            case 401, 403: "API key 无效或没有权限（\(status)）。\(message)"
-            case 404: "找不到这个模型，请在设置里检查模型名称。\(message)"
-            case 429: "请求太频繁或额度用完了（429）。\(message)"
-            default: "服务返回错误 \(status)。\(message)"
+            case 401, 403: "API key 无效或没有权限，请在设置里检查。"
+            case 404: "找不到这个模型，请在设置里检查模型名称。"
+            case 429: Self.rateLimitSummary(message)
+            case 500...599: "服务暂时不可用（\(status)），稍后再试。"
+            default: "服务返回错误 \(status)：\(Self.clip(message))"
             }
         case .refused: "模型拒绝回答这个问题。"
         case .empty: "模型没有返回内容。"
         }
+    }
+
+    /// The provider's full message, for logs or a details view.
+    public var detail: String? {
+        if case .http(_, let message) = self, !message.isEmpty { return message }
+        return nil
+    }
+
+    static func rateLimitSummary(_ message: String) -> String {
+        let lower = message.lowercased()
+        let quota = lower.contains("quota") || lower.contains("billing") || lower.contains("credit")
+        var text = quota ? "额度用完了" : "请求太频繁"
+        if let wait = retryDelay(in: message) { text += "，约 \(wait)后可以再试" } else { text += "，稍后再试" }
+        return text + "。"
+    }
+
+    /// Reads "retry in 14382.5s" (Gemini) or "try again in 20s" style hints and renders them in Chinese.
+    static func retryDelay(in message: String) -> String? {
+        guard let match = message.firstMatch(of: /(?i)(?:retry|try again) in ([0-9]+(?:\.[0-9]+)?)\s*s/),
+              let seconds = Double(match.1) else { return nil }
+        let s = Int(seconds.rounded(.up))
+        if s >= 3600 { return "\(Int((Double(s) / 3600).rounded())) 小时" }
+        if s >= 60 { return "\(Int((Double(s) / 60).rounded(.up))) 分钟" }
+        return "\(max(s, 1)) 秒"
+    }
+
+    static func clip(_ message: String, limit: Int = 80) -> String {
+        let line = message.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+        return line.count > limit ? String(line.prefix(limit)) + "…" : line
     }
 }
 

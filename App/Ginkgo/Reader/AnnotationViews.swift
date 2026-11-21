@@ -13,24 +13,24 @@ struct MarksLayer: View {
         Canvas { ctx, _ in
             if model.penOn {
                 for line in model.selectionLines {
-                    ctx.fill(Path(roundedRect: line.insetBy(dx: -1, dy: -1), cornerRadius: 2),
-                             with: .color(Color.accentColor.opacity(0.28)))
+                    ctx.fill(Path(roundedRect: line.insetBy(dx: -1, dy: -1), cornerRadius: Theme.markRadius),
+                             with: .color(Theme.accent.opacity(Theme.Mark.selectionOpacity)))
                 }
             }
             for record in model.annotations {
                 guard let g = model.geometry[record.id] else { continue }
                 let focused = model.focused == record.id
-                let opacity = focused ? 0.55 : (model.mode == .reading ? 0.32 : 0.42)
+                let opacity = focused ? Theme.markFocusOpacity : (model.mode == .reading ? Theme.markReadingOpacity : Theme.markReviewOpacity)
                 for line in g.lines {
                     let r = line.insetBy(dx: -1.5, dy: -0.5)
-                    ctx.fill(Path(roundedRect: r, cornerRadius: 3), with: .color(record.color.fill.opacity(opacity)))
+                    ctx.fill(Path(roundedRect: r, cornerRadius: Theme.markRadius), with: .color(record.color.fill.opacity(opacity)))
                 }
                 if focused || (record.hasNote && model.isOpen(record.id)) {
                     for line in g.lines {
                         var p = Path()
                         p.move(to: CGPoint(x: line.minX, y: line.maxY + 1))
                         p.addLine(to: CGPoint(x: line.maxX, y: line.maxY + 1))
-                        ctx.stroke(p, with: .color(record.color.ink.opacity(0.8)), lineWidth: 1.4)
+                        ctx.stroke(p, with: .color(record.color.ink.opacity(Theme.Mark.underlineOpacity)), lineWidth: Theme.Mark.underlineWidth)
                     }
                 }
             }
@@ -49,11 +49,11 @@ struct NoteCard: View {
     var floating = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle().fill(record.color.ink).frame(width: 7, height: 7)
+        VStack(alignment: .leading, spacing: Theme.rhythm) {
+            HStack(spacing: Theme.Space.compact) {
+                Circle().fill(record.color.ink).frame(width: Theme.Card.dotSize, height: Theme.Card.dotSize)
                 Text(record.taskLabel)
-                    .font(.caption.weight(.semibold))
+                    .font(Theme.labelFont)
                     .foregroundStyle(record.color.ink)
                 Spacer(minLength: 0)
                 if record.replyState == .pending || record.replyState == .streaming {
@@ -61,33 +61,34 @@ struct NoteCard: View {
                 }
             }
             if let data = record.inkData, let ink = try? PKDrawing(data: data) {
-                InkImage(drawing: ink, maxWidth: width - 28)
+                InkImage(drawing: ink, maxWidth: width - Theme.cardInset * 2)
+                    .modifier(NoteInkAppearance())
                 if let q = record.question, !q.isEmpty {
-                    Text("“\(q)”").font(.caption).foregroundStyle(.secondary)
+                    Text("“\(q)”").font(Theme.captionFont).foregroundStyle(Theme.secondaryInk)
                 }
             } else if let q = record.question, !q.isEmpty {
                 Text(q)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.primary)
+                    .font(Theme.questionFont)
+                    .foregroundStyle(Theme.ink)
             }
             answer
         }
-        .padding(14)
+        .padding(Theme.cardInset)
         .frame(width: width, alignment: .leading)
         .background {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color(uiColor: .systemBackground).opacity(floating ? 0.98 : 0.92))
-                .shadow(color: .black.opacity(floating ? 0.16 : 0.07), radius: floating ? 16 : 6, y: floating ? 6 : 2)
+            RoundedRectangle(cornerRadius: Theme.cardRadius)
+                .fill(Theme.card)
+                .shadow(color: floating ? Theme.Card.floatingShadow : Theme.Card.marginShadow, radius: floating ? Theme.floatingShadow : Theme.Card.marginRadius, y: floating ? Theme.Card.floatingY : Theme.Card.marginY)
         }
         .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2).fill(record.color.fill).frame(width: 3).padding(.vertical, 12)
+            RoundedRectangle(cornerRadius: Theme.Card.ruleRadius).fill(record.color.ink.opacity(Theme.Card.ruleOpacity)).frame(width: Theme.noteRuleWidth).padding(.vertical, Theme.cardInset)
         }
         .overlay {
             if model.focused == record.id {
-                RoundedRectangle(cornerRadius: 14).strokeBorder(record.color.ink.opacity(0.35), lineWidth: 1)
+                RoundedRectangle(cornerRadius: Theme.cardRadius).strokeBorder(record.color.ink.opacity(Theme.Card.focusOpacity), lineWidth: Theme.Card.borderWidth)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: 14))
+        .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
         .onTapGesture { withAnimation(.smooth(duration: 0.2)) { model.focused = record.id } }
         .contextMenu {
             if let text = record.replyText {
@@ -103,27 +104,27 @@ struct NoteCard: View {
     @ViewBuilder private var answer: some View {
         switch record.replyState {
         case .failed:
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Theme.rhythm) {
                 Text(record.replyError ?? "没有拿到回答。")
-                    .font(.footnote)
-                    .foregroundStyle(.red)
+                    .font(Theme.footnoteFont)
+                    .foregroundStyle(Theme.error)
                 HStack {
                     Button("重试") { model.retry(record.id) }
                     if record.replyError?.contains("API key") == true {
                         Button("打开设置") { model.showSettings = true }
                     }
                 }
-                .font(.footnote.weight(.medium))
+                .font(Theme.actionFont)
                 .buttonStyle(.bordered)
             }
         case .pending:
-            Text("正在思考…").font(.footnote).foregroundStyle(.secondary)
+            Text("正在思考…").font(Theme.footnoteFont).foregroundStyle(Theme.secondaryInk)
         default:
             if let text = record.replyText {
                 Text(text)
-                    .font(.system(.subheadline, design: .serif))
-                    .lineSpacing(3)
-                    .foregroundStyle(.primary.opacity(0.88))
+                    .font(Theme.noteFont)
+                    .lineSpacing(Theme.lineSpacing)
+                    .foregroundStyle(Theme.ink)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -132,13 +133,14 @@ struct NoteCard: View {
 }
 
 struct ThinkingDots: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var color: Color
     var body: some View {
-        TimelineView(.animation(minimumInterval: 0.25)) { context in
-            let step = Int(context.date.timeIntervalSinceReferenceDate * 3) % 3
-            HStack(spacing: 3) {
+        TimelineView(.animation(minimumInterval: Theme.Thinking.interval, paused: reduceMotion)) { context in
+            let step = reduceMotion ? 0 : Int(context.date.timeIntervalSinceReferenceDate * 3) % 3
+            HStack(spacing: Theme.Space.tiny) {
                 ForEach(0..<3) { i in
-                    Circle().fill(color.opacity(i == step ? 0.9 : 0.3)).frame(width: 4, height: 4)
+                    Circle().fill(color.opacity(i == step ? Theme.Thinking.activeOpacity : Theme.Thinking.idleOpacity)).frame(width: Theme.Thinking.size, height: Theme.Thinking.size)
                 }
             }
         }
@@ -204,7 +206,7 @@ struct ConnectorLayer: View {
                 p.addCurve(to: end, control1: CGPoint(x: start.x + 60, y: start.y),
                            control2: CGPoint(x: end.x - 60, y: end.y))
                 let strong = model.focused == record.id
-                ctx.stroke(p, with: .color(record.color.ink.opacity(strong ? 0.55 : 0.22)), lineWidth: strong ? 1.2 : 0.8)
+                ctx.stroke(p, with: .color(record.color.ink.opacity(strong ? Theme.Connector.focusedOpacity : Theme.Connector.idleOpacity)), lineWidth: strong ? Theme.Connector.focusedWidth : Theme.Connector.idleWidth)
             }
         }
     }
@@ -216,8 +218,8 @@ struct MarginTick: View {
 
     var body: some View {
         Button(action: action) {
-            Capsule().fill(color.opacity(0.75)).frame(width: 4, height: 18)
-                .padding(.horizontal, 10).padding(.vertical, 4)
+            Capsule().fill(color.opacity(Theme.Connector.tickOpacity)).frame(width: Theme.tickWidth, height: Theme.tickHeight)
+                .padding(.horizontal, Theme.rhythm).padding(.vertical, Theme.Space.small)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -277,16 +279,18 @@ struct SelectionMenu: View {
 
     var body: some View {
         if let rect = model.selectionRect, let selection = model.selection {
+            let halfWidth = min(Theme.menuWidth, layout.pageWidth - Theme.menuInset * 2) / 2
             ActionCapsule(
+                availableWidth: layout.pageWidth - Theme.menuInset * 2,
                 colors: { color in withAnimation { _ = model.highlight(selection, color: color) } },
                 translate: { model.run(.translate, on: selection) },
                 explain: { model.run(.explain, on: selection) },
                 ask: { model.asking = .selection(selection) },
                 trailing: AnyView(Button { UIPasteboard.general.string = selection.string; model.clearSelection() } label: {
-                    Image(systemName: "doc.on.doc").frame(width: 34, height: 34)
+                    Image(systemName: "doc.on.doc").frame(minWidth: Theme.controlHeight, minHeight: Theme.controlHeight)
                 }.accessibilityLabel("复制"))
             )
-            .position(x: min(max(rect.midX, 230), layout.pageWidth - 230),
+            .position(x: min(max(rect.midX, halfWidth + Theme.menuInset), layout.pageWidth - halfWidth - Theme.menuInset),
                       y: min(rect.maxY + 36, layout.size.height - 60))
             .transition(.scale(scale: 0.92).combined(with: .opacity))
         }
@@ -301,17 +305,19 @@ struct AnnotationMenu: View {
     var body: some View {
         if model.selection == nil, let id = model.focused, let record = model.annotation(id), !record.hasNote,
            let g = model.geometry[id] {
+            let halfWidth = min(Theme.menuWidth, layout.pageWidth - Theme.menuInset * 2) / 2
             ActionCapsule(
                 current: record.color,
+                availableWidth: layout.pageWidth - Theme.menuInset * 2,
                 colors: { color in model.recolor(id, color) },
                 translate: { model.run(.translate, on: id) },
                 explain: { model.run(.explain, on: id) },
                 ask: { model.asking = .annotation(id) },
                 trailing: AnyView(Button(role: .destructive) { withAnimation { model.delete(id) } } label: {
-                    Image(systemName: "trash").frame(width: 34, height: 34)
+                    Image(systemName: "trash").frame(minWidth: Theme.controlHeight, minHeight: Theme.controlHeight)
                 }.accessibilityLabel("删除高亮"))
             )
-            .position(x: min(max(g.union.midX, 230), layout.pageWidth - 230),
+            .position(x: min(max(g.union.midX, halfWidth + Theme.menuInset), layout.pageWidth - halfWidth - Theme.menuInset),
                       y: min(g.union.maxY + 36, layout.size.height - 60))
             .transition(.scale(scale: 0.92).combined(with: .opacity))
         }
@@ -319,7 +325,9 @@ struct AnnotationMenu: View {
 }
 
 private struct ActionCapsule: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     var current: HighlightColor?
+    var availableWidth: CGFloat
     var colors: (HighlightColor) -> Void
     var translate: () -> Void
     var explain: () -> Void
@@ -327,36 +335,57 @@ private struct ActionCapsule: View {
     var trailing: AnyView
 
     var body: some View {
-        HStack(spacing: 4) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: Theme.rhythm) { swatches; actions }
+            VStack(spacing: Theme.rhythm) { swatches; actions }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary)
+        .padding(Theme.rhythm)
+        .frame(maxWidth: min(Theme.menuWidth, availableWidth))
+        .glassEffect(.regular.tint(Theme.glassTint).interactive(), in: .rect(cornerRadius: Theme.panelRadius))
+    }
+
+    private var swatches: some View {
+        HStack(spacing: Theme.Space.small) {
             ForEach(HighlightColor.allCases, id: \.self) { color in
                 Button { colors(color) } label: {
                     Circle().fill(color.fill)
-                        .overlay { Circle().strokeBorder(color.ink.opacity(current == color ? 0.9 : 0.25), lineWidth: current == color ? 2 : 1) }
-                        .frame(width: 22, height: 22)
-                        .frame(width: 30, height: 34)
+                        .overlay { Circle().strokeBorder(color.ink.opacity(current == color ? Theme.Swatch.selectedOpacity : Theme.Swatch.idleOpacity), lineWidth: current == color ? Theme.Swatch.selectedBorder : Theme.Swatch.idleBorder) }
+                        .overlay { if current == color { Image(systemName: "checkmark").font(Theme.checkFont).foregroundStyle(Theme.swatchInk) } }
+                        .frame(width: Theme.swatchSize, height: Theme.swatchSize)
+                        .frame(width: Theme.swatchHitWidth, height: Theme.controlHeight)
                 }
                 .accessibilityLabel("\(color.name)色高亮")
+                .accessibilityAddTraits(current == color ? .isSelected : [])
             }
-            Divider().frame(height: 22).padding(.horizontal, 4)
-            item("翻译", "character.bubble", translate)
-            item("解释", "text.magnifyingglass", explain)
-            item("提问", "questionmark.bubble", ask)
-            Divider().frame(height: 22).padding(.horizontal, 2)
-            trailing
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .glassEffect(.regular.interactive(), in: .capsule)
-        .fixedSize()
+    }
+
+    @ViewBuilder private var actions: some View {
+        if typeSize.isAccessibilitySize {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading),
+                                     count: availableWidth < Theme.menuWidth ? 1 : 2), spacing: Theme.rhythm) {
+                actionItems
+            }
+        } else {
+            HStack(spacing: 0) { actionItems }
+        }
+    }
+
+    @ViewBuilder private var actionItems: some View {
+        item("翻译", "character.bubble", translate)
+        item("解释", "text.magnifyingglass", explain)
+        item("提问", "questionmark.bubble", ask)
+        trailing
     }
 
     private func item(_ title: String, _ symbol: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 8)
-                .frame(height: 34)
+                .font(Theme.menuFont)
+                .padding(.horizontal, Theme.Space.regular)
+                .frame(minHeight: Theme.controlHeight)
         }
     }
 }
@@ -381,12 +410,13 @@ struct AskSheet: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
                 Text(quote)
-                    .font(.system(.callout, design: .serif))
-                    .foregroundStyle(.secondary)
+                    .font(Theme.quoteFont)
+                    .foregroundStyle(Theme.secondaryInk)
                     .lineLimit(5)
-                    .padding(12)
+                    .padding(Theme.Space.medium)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(.quaternary.opacity(0.5)))
+                    .background(RoundedRectangle(cornerRadius: Theme.cardRadius).fill(Theme.margin))
+                    .overlay(alignment: .leading) { Rectangle().fill(Theme.accent.opacity(Theme.quoteRuleOpacity)).frame(width: Theme.noteRuleWidth) }
                 TextField("比如：这句话为什么这么说？", text: $question, axis: .vertical)
                     .lineLimit(2...6)
                     .focused($focused)
@@ -394,7 +424,8 @@ struct AskSheet: View {
                     .onSubmit(send)
                 Spacer()
             }
-            .padding(20)
+            .padding(Theme.Space.section)
+            .background(Theme.paper)
             .navigationTitle("向 AI 提问")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

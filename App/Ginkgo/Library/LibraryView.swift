@@ -23,6 +23,7 @@ struct LibraryView: View {
                     grid
                 }
             }
+            .background(Theme.paper)
             .navigationTitle("书库")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -46,13 +47,18 @@ struct LibraryView: View {
             Text(importError ?? "")
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
-        .task { DebugLaunch.seedIfRequested(context: context, open: { path = [$0] }) }
+        .task {
+            DebugLaunch.seedIfRequested(context: context, open: { path = [$0] })
+            #if DEBUG
+            if UserDefaults.standard.bool(forKey: "inMemoryStore"), UserDefaults.standard.bool(forKey: "visualSettings") { showSettings = true }
+            #endif
+        }
     }
 
     private var grid: some View {
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 190), spacing: 28, alignment: .top)],
-                      spacing: 36) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: Theme.Cover.minimumWidth, maximum: Theme.Cover.maximumWidth), spacing: Theme.pageInset, alignment: .top)],
+                      spacing: Theme.pageInset + Theme.rhythm) {
                 ForEach(shelf) { book in
                     NavigationLink(value: book) {
                         BookCover(book: book)
@@ -65,28 +71,38 @@ struct LibraryView: View {
                     }
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.vertical, 24)
+            .padding(.horizontal, Theme.pageInset)
+            .padding(.vertical, Theme.pageInset)
         }
         .overlay { if dropTargeted { dropHighlight } }
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("书库是空的", systemImage: "books.vertical")
-        } description: {
+        VStack(spacing: Theme.cardInset) {
+            Image(systemName: "book.closed")
+                .font(Theme.emptyIconFont)
+                .foregroundStyle(Theme.accent)
+                .padding(Theme.pageInset)
+                .background(Theme.margin, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+                .accessibilityHidden(true)
+            Text("书库是空的").font(Theme.emptyTitleFont)
             Text("从“文件”导入 PDF，或者直接把 PDF 拖到这里。")
-        } actions: {
+                .font(Theme.calloutFont)
+                .foregroundStyle(Theme.secondaryInk)
+                .multilineTextAlignment(.center)
             Button("导入 PDF") { importing = true }
                 .buttonStyle(.glassProminent)
+                .padding(.top, Theme.rhythm)
         }
+        .padding(Theme.pageInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay { if dropTargeted { dropHighlight } }
     }
 
     private var dropHighlight: some View {
-        RoundedRectangle(cornerRadius: 24)
-            .strokeBorder(.tint, style: StrokeStyle(lineWidth: 3, dash: [10, 8]))
-            .padding(16)
+        RoundedRectangle(cornerRadius: Theme.dropRadius)
+            .strokeBorder(.tint, style: StrokeStyle(lineWidth: Theme.dropLineWidth, dash: Theme.dropDash))
+            .padding(Theme.cardInset)
             .allowsHitTesting(false)
     }
 
@@ -105,18 +121,24 @@ private struct BookCover: View {
     let book: Book
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Theme.cardInset) {
             cover
-                .aspectRatio(0.72, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
-            VStack(alignment: .leading, spacing: 4) {
+                .aspectRatio(Theme.Cover.ratio, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.coverRadius))
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Theme.Cover.spine).frame(width: Theme.Cover.spineWidth)
+                }
+                .shadow(color: Theme.Cover.shadow, radius: Theme.coverShadow, x: Theme.Cover.shadowX, y: Theme.Cover.shadowY)
+            VStack(alignment: .leading, spacing: Theme.Space.small) {
                 Text(book.title)
-                    .font(.subheadline.weight(.medium))
+                    .font(Theme.titleFont)
                     .lineLimit(2)
+                ProgressView(value: book.lastOpenedAt == nil ? 0 : Double(book.lastPageIndex + 1), total: Double(max(book.pageCount, 1)))
+                    .tint(Theme.accent)
+                    .accessibilityLabel("阅读进度")
                 Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(Theme.captionFont)
+                    .foregroundStyle(Theme.secondaryInk)
             }
         }
         .contentShape(Rectangle())
@@ -130,7 +152,7 @@ private struct BookCover: View {
         } else {
             Rectangle()
                 .fill(.quaternary)
-                .overlay { Image(systemName: "doc.text").font(.largeTitle).foregroundStyle(.secondary) }
+                .overlay { Image(systemName: "doc.text").font(Theme.largeIconFont).foregroundStyle(Theme.secondaryInk) }
         }
     }
 

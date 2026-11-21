@@ -48,7 +48,7 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 - Pencil 的手感、划线和圈选的识别阈值，需要真机调。
 - 竖屏回顾模式下，卡片会盖住下面几行字，点色条可以收起。
 - 跨页选中的文字只记录第一页那部分。
-- 还没有 iCloud 同步（第六阶段）；界面视觉还是系统默认样式，视觉稿按分工交给 codex。
+- 还没有 iCloud 同步（第六阶段）。视觉参数集中在 `Ginkgo/Design/Theme.swift`；当前设计说明和浅深色截图见 [`docs/design/`](../docs/design/README.md)，等待审核。
 
 ## 模拟器调试参数
 
