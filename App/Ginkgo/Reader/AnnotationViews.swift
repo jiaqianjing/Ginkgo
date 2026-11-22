@@ -21,31 +21,8 @@ struct MarksLayer: View {
                 guard let g = model.geometry[record.id] else { continue }
                 let focused = model.focused == record.id
                 let opacity = focused ? Theme.markFocusOpacity : (model.mode == .reading ? Theme.markReadingOpacity : Theme.markReviewOpacity)
-                if record.style != .highlight {
-                    // Rules: drawn in a dark tone of the colour, with a faint fill only while focused.
-                    for line in g.lines {
-                        if focused {
-                            ctx.fill(Path(roundedRect: line.insetBy(dx: -1.5, dy: -0.5), cornerRadius: Theme.markRadius),
-                                     with: .color(record.color.fill.opacity(Theme.Rule.focusFillOpacity)))
-                        }
-                        var p = Path()
-                        let y = line.maxY + Theme.Rule.gap
-                        if record.style == .squiggly {
-                            p.addWave(from: CGPoint(x: line.minX, y: y), to: CGPoint(x: line.maxX, y: y),
-                                      amplitude: Theme.Rule.waveAmplitude, wavelength: Theme.Rule.waveLength)
-                        } else {
-                            p.move(to: CGPoint(x: line.minX, y: y))
-                            p.addLine(to: CGPoint(x: line.maxX, y: y))
-                        }
-                        ctx.stroke(p, with: .color(Theme.markLine(record.color)), style: StrokeStyle(lineWidth: Theme.Rule.width, lineCap: .round, lineJoin: .round))
-                    }
-                    continue
-                }
-                for line in g.lines {
-                    let r = line.insetBy(dx: -1.5, dy: -0.5)
-                    ctx.fill(Path(roundedRect: r, cornerRadius: Theme.markRadius), with: .color(record.color.fill.opacity(opacity)))
-                }
-                if focused || (record.hasNote && model.isOpen(record.id)) {
+                MarkPainter.paint(&ctx, lines: g.lines, style: record.style, color: record.color, opacity: opacity, focused: focused)
+                if record.style == .highlight, focused || (record.hasNote && model.isOpen(record.id)) {
                     for line in g.lines {
                         var p = Path()
                         p.move(to: CGPoint(x: line.minX, y: line.maxY + 1))
@@ -53,6 +30,11 @@ struct MarksLayer: View {
                         ctx.stroke(p, with: .color(record.color.ink.opacity(Theme.Mark.underlineOpacity)), lineWidth: Theme.Mark.underlineWidth)
                     }
                 }
+            }
+            // The mark being drawn, following the text under the Pencil.
+            if let preview = model.markPreview {
+                MarkPainter.paint(&ctx, lines: preview.lines, style: preview.style, color: preview.color,
+                                  opacity: Theme.markFocusOpacity, focused: false)
             }
         }
         .blendMode(.multiply)
@@ -72,6 +54,42 @@ struct MarksLayer: View {
         case .highlighter, .underline: Theme.markLine(model.markColor)
         case .pen: model.inkColor.color
         default: Theme.accent
+        }
+    }
+}
+
+/// How marks look on the page, sized from the line height so they scale with zoom. A highlight is a marker pass:
+/// a soft band over the x-height with rounded ends. Rules sit on the baseline, not at the bottom of the line box.
+enum MarkPainter {
+    static func paint(_ ctx: inout GraphicsContext, lines: [CGRect], style: MarkStyle, color: HighlightColor,
+                      opacity: Double, focused: Bool) {
+        for line in lines {
+            let h = line.height
+            switch style {
+            case .highlight:
+                let band = CGRect(x: line.minX - h * Theme.Marker.overhang, y: line.minY + h * Theme.Marker.topInset,
+                                  width: line.width + h * Theme.Marker.overhang * 2,
+                                  height: h * (1 - Theme.Marker.topInset - Theme.Marker.bottomInset))
+                ctx.fill(Path(roundedRect: band, cornerRadius: band.height * Theme.Marker.roundness),
+                         with: .color(color.fill.opacity(opacity)))
+            case .underline, .squiggly:
+                if focused {
+                    ctx.fill(Path(roundedRect: line.insetBy(dx: -1.5, dy: -0.5), cornerRadius: Theme.markRadius),
+                             with: .color(color.fill.opacity(Theme.Rule.focusFillOpacity)))
+                }
+                let y = line.maxY - h * Theme.Rule.baseline
+                let width = min(max(h * Theme.Rule.relativeWidth, Theme.Rule.minWidth), Theme.Rule.maxWidth)
+                var p = Path()
+                if style == .squiggly {
+                    p.addWave(from: CGPoint(x: line.minX, y: y), to: CGPoint(x: line.maxX, y: y),
+                              amplitude: max(h * Theme.Rule.waveAmplitude, 1), wavelength: max(h * Theme.Rule.waveLength, 4))
+                } else {
+                    p.move(to: CGPoint(x: line.minX, y: y))
+                    p.addLine(to: CGPoint(x: line.maxX, y: y))
+                }
+                ctx.stroke(p, with: .color(Theme.markLine(color).opacity(Theme.Rule.opacity)),
+                           style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
+            }
         }
     }
 }

@@ -21,6 +21,14 @@ struct NoteGeometry {
     var union: CGRect { lines.reduce(CGRect.null) { $0.union($1) } }
 }
 
+/// A highlight or rule in progress.
+struct MarkPreview {
+    var lines: [CGRect]
+    var style: MarkStyle
+    var color: HighlightColor
+    var selection: PDFSelection
+}
+
 /// What the question sheet is asking about.
 enum AskTarget: Identifiable {
     case selection(PDFSelection)
@@ -84,6 +92,13 @@ final class ReaderModel {
     var markColor = ToolSettings.markColor { didSet { ToolSettings.markColor = markColor; pageInk.toolChanged() } }
     var inkColor = ToolSettings.inkColor { didSet { ToolSettings.inkColor = inkColor; pageInk.toolChanged() } }
     var underlineStyle = ToolSettings.underlineStyle { didSet { ToolSettings.underlineStyle = underlineStyle } }
+    var highlighterFreehand = ToolSettings.highlighterFreehand {
+        didSet { ToolSettings.highlighterFreehand = highlighterFreehand; pageInk.toolChanged() }
+    }
+    /// The mark being drawn: lines in reader coordinates, shown live under the Pencil.
+    var markPreview: MarkPreview?
+    /// Whether the current tool marks text live (so the page canvas stays out of the way).
+    var marksLive: Bool { tool?.snapsToText(freehand: highlighterFreehand) ?? false }
     var showToolHint = !ToolSettings.seenHint
     /// Mirrors the undo manager for the tray's buttons.
     var canUndo = false

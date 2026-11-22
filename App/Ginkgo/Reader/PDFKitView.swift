@@ -38,6 +38,13 @@ struct PDFKitView: UIViewRepresentable {
         center.addObserver(c, selector: #selector(Coordinator.geometryChanged), name: .PDFViewVisiblePagesChanged, object: view)
         center.addObserver(c, selector: #selector(Coordinator.selectionChanged), name: .PDFViewSelectionChanged, object: view)
 
+        let mark = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.marking(_:)))
+        mark.maximumNumberOfTouches = 1
+        mark.delegate = c
+        mark.name = "ginkgo.mark"
+        view.addGestureRecognizer(mark)
+        c.markGesture = mark
+
         let twoFinger = UITapGestureRecognizer(target: c, action: #selector(Coordinator.twoFingerTapped(_:)))
         twoFinger.numberOfTouchesRequired = 2
         twoFinger.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
@@ -66,6 +73,8 @@ struct PDFKitView: UIViewRepresentable {
         let model: ReaderModel
         var onPageChange: (Int) -> Void
         private var observations: [NSKeyValueObservation] = []
+        weak var markGesture: UIPanGestureRecognizer?
+        private var markStart: (page: PDFPage, point: CGPoint)?
 
         init(model: ReaderModel, onPageChange: @escaping (Int) -> Void) {
             self.model = model
@@ -75,6 +84,8 @@ struct PDFKitView: UIViewRepresentable {
         /// PDFKit scrolls an internal UIScrollView; follow it so margin notes move with the text.
         func attachScrollObserver(_ view: PDFView) {
             guard let scroll = view.firstSubview(of: UIScrollView.self) else { return }
+            // A live mark wins over scrolling; it fails at once when no marking tool is chosen, so scrolling is not delayed.
+            if let markGesture { scroll.panGestureRecognizer.require(toFail: markGesture) }
             observations = [
                 scroll.observe(\.contentOffset, options: [.new]) { [weak self] _, _ in
                     MainActor.assumeIsolated { self?.model.recompute() }
@@ -147,7 +158,82 @@ struct PDFKitView: UIViewRepresentable {
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-            true
+            g !== markGesture && other !== markGesture
+        }
+
+        func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
+            g === markGesture ? model.marksLive : true
+        }
+
+        func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard g === markGesture else { return true }
+            #if targetEnvironment(simulator)
+            return true
+            #else
+            return touch.type == .pencil
+            #endif
+        }
+
+        // MARK: Live marks
+
+        /// Highlighter and underline follow the text from where the Pencil landed to where it is now, like dragging
+        /// a text selection, and the mark is shown as it will be saved. Lifting the Pencil keeps it.
+        @objc func marking(_ g: UIPanGestureRecognizer) {
+            guard let view = g.view as? PDFView, let tool = model.tool else { return }
+            let underline = tool == .underline
+            switch g.state {
+            case .began:
+                let p = g.location(in: view)
+                guard let page = view.page(for: p, nearest: true) else { return }
+                markStart = (page, textPoint(near: view.convert(p, to: page), on: page, underline: underline))
+                update(g, in: view, underline: underline)
+            case .changed:
+                update(g, in: view, underline: underline)
+            case .ended:
+                update(g, in: view, underline: underline)
+                if let preview = model.markPreview {
+                    withAnimation(.smooth(duration: 0.15)) {
+                        _ = model.highlight(preview.selection, color: preview.color, style: preview.style)
+                    }
+                }
+                model.markPreview = nil
+                markStart = nil
+            default:
+                model.markPreview = nil
+                markStart = nil
+            }
+        }
+
+        private func update(_ g: UIPanGestureRecognizer, in view: PDFView, underline: Bool) {
+            guard let start = markStart else { return }
+            let end = textPoint(near: view.convert(g.location(in: view), to: start.page), on: start.page, underline: underline)
+            guard let selection = start.page.selection(from: start.point, to: end) else { model.markPreview = nil; return }
+            // Whole words at both ends, as text selection does; a mark never stops mid-word.
+            for point in [start.point, end] {
+                if let word = start.page.selectionForWord(at: point), word.string?.trimmingCharacters(in: .whitespaces).isEmpty == false {
+                    selection.add(word)
+                }
+            }
+            guard selection.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                model.markPreview = nil
+                return
+            }
+            let lines = selection.selectionsByLine().map { view.convert($0.bounds(for: start.page), from: start.page) }
+                .filter { $0.width > 0.5 && $0.height > 0.5 }
+            model.markPreview = MarkPreview(lines: lines, style: underline ? model.underlineStyle : .highlight,
+                                            color: model.markColor, selection: selection)
+        }
+
+        /// The nearest point on text: an underline is drawn under its line, so look a little above the tip first.
+        private func textPoint(near p: CGPoint, on page: PDFPage, underline: Bool) -> CGPoint {
+            // Page space has y growing up: positive offsets look above the tip.
+            let offsets: [CGFloat] = underline ? [4, 7, 10, 2, 13, 0, 16] : [0, 3, -3, 6, -6]
+            for dy in offsets {
+                let q = CGPoint(x: p.x, y: p.y + dy)
+                let index = page.characterIndex(at: q)
+                if index >= 0, index != NSNotFound { return q }
+            }
+            return underline ? CGPoint(x: p.x, y: p.y + 6) : p
         }
 
         // MARK: Apple Pencil

@@ -57,7 +57,8 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         #endif
         canvas.isScrollEnabled = false
         let tool = model?.tool
-        canvas.isUserInteractionEnabled = tool != nil
+        // Live marks are drawn by the reader's mark gesture, so touches pass through the canvas to the page.
+        canvas.isUserInteractionEnabled = tool != nil && model?.marksLive != true
         switch tool {
         case .highlighter?:
             canvas.tool = PKInkingTool(.marker, color: UIColor(model?.markColor.fill ?? .yellow).withAlphaComponent(0.5), width: 14)
@@ -148,6 +149,8 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         var penStrokes: [PKStroke] = []
         for stroke in fresh {
             switch PenTool(inkType: stroke.ink.inkType) {
+            case .highlighter? where model.highlighterFreehand:
+                keep.append(Self.straightenedIfHeld(stroke))
             case .highlighter?:
                 if let span = StrokeSnapping.highlight(points: points(stroke), textLines: lines), let sel = selection(span) {
                     model.highlight(sel, color: model.markColor)
@@ -202,6 +205,23 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         if !Self.same(canvas.drawing, before) {
             model.registerInkChange(page: index, from: before, to: canvas.drawing)
         }
+    }
+
+    /// Freehand marker: holding the tip still at the end of a stroke (about half a second) straightens it, as in
+    /// note apps. The straight stroke keeps the original ink and width.
+    static func straightenedIfHeld(_ stroke: PKStroke) -> PKStroke {
+        let points = Array(stroke.path)
+        guard let first = points.first, let last = points.last, points.count > 4,
+              last.timeOffset - first.timeOffset > 0.6 else { return stroke }
+        let tail = points.filter { last.timeOffset - $0.timeOffset <= 0.45 }
+        let still = tail.allSatisfy { hypot($0.location.x - last.location.x, $0.location.y - last.location.y) < 3 }
+        guard still, tail.count >= 3, hypot(last.location.x - first.location.x, last.location.y - first.location.y) > 12 else { return stroke }
+        let ends = [first, last].enumerated().map { i, p in
+            PKStrokePoint(location: p.location, timeOffset: Double(i) * 0.1, size: first.size, opacity: first.opacity,
+                          force: first.force, azimuth: first.azimuth, altitude: first.altitude)
+        }
+        return PKStroke(ink: stroke.ink, path: PKStrokePath(controlPoints: ends, creationDate: stroke.path.creationDate),
+                        transform: stroke.transform, mask: stroke.mask)
     }
 
     /// Two drawings with the same strokes (two empty drawings can encode differently).

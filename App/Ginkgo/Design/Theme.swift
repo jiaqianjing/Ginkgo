@@ -165,13 +165,23 @@ enum Theme {
         static let optionStep = 0.32    // radians between options (about 18°)
         static let shadow: CGFloat = 5
     }
-    /// Underline and wave marks on the page.
+    /// Underline and wave marks on the page, as fractions of the line height so they scale with zoom.
     enum Rule {
-        static let width: CGFloat = 1.6
-        static let gap: CGFloat = 1.5
-        static let waveAmplitude: CGFloat = 1.6
-        static let waveLength: CGFloat = 7
+        static let baseline: CGFloat = 0.13      // up from the bottom of the line box (below the descenders' gap)
+        static let relativeWidth: CGFloat = 0.11
+        static let minWidth: CGFloat = 1.6
+        static let maxWidth: CGFloat = 4
+        static let opacity = 0.85
+        static let waveAmplitude: CGFloat = 0.075
+        static let waveLength: CGFloat = 0.34
         static let focusFillOpacity = 0.18
+    }
+    /// Highlighter band, as fractions of the line height.
+    enum Marker {
+        static let topInset: CGFloat = 0.1
+        static let bottomInset: CGFloat = 0.04
+        static let overhang: CGFloat = 0.12
+        static let roundness: CGFloat = 0.38
     }
     static let hoverRing: CGFloat = 10
 

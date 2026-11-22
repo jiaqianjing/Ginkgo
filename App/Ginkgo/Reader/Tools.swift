@@ -58,6 +58,9 @@ enum PenTool: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Marks that follow the text live while drawing (the canvas stays out of the way for these).
+    func snapsToText(freehand: Bool) -> Bool { self == .underline || (self == .highlighter && !freehand) }
+
     /// Whether the tool picks one of the five highlight colours (the others use pen colours or none).
     var usesMarkColor: Bool { self == .highlighter || self == .underline }
 }
@@ -111,6 +114,12 @@ struct ToolSettings {
     static var underlineStyle: MarkStyle {
         get { d.string(forKey: "pen.underlineStyle").flatMap(MarkStyle.init(rawValue:)) ?? .underline }
         set { d.set(newValue.rawValue, forKey: "pen.underlineStyle") }
+    }
+
+    /// Highlighter keeps the stroke as drawn instead of following the text (for scanned pages, or a hand-drawn look).
+    static var highlighterFreehand: Bool {
+        get { d.bool(forKey: "pen.highlighterFreehand") }
+        set { d.set(newValue, forKey: "pen.highlighterFreehand") }
     }
 
     static var seenHint: Bool {
@@ -220,6 +229,24 @@ struct ToolTray: View {
                         .contentShape(Rectangle())
                 }
                 .accessibilityLabel(style == .underline ? "直线" : "波浪线")
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+            Divider().frame(width: vertical ? Theme.Tray.dividerLength : nil, height: vertical ? nil : Theme.Tray.dividerLength)
+        }
+        if tool == .highlighter {
+            ForEach([false, true], id: \.self) { freehand in
+                let on = model.highlighterFreehand == freehand
+                Button { model.highlighterFreehand = freehand } label: {
+                    Image(systemName: freehand ? "scribble" : "text.alignleft")
+                        .font(Theme.Tray.iconFont)
+                        .foregroundStyle(on ? Theme.accent : Theme.secondaryInk)
+                        .frame(width: Theme.Tray.button, height: Theme.Tray.button)
+                        .background {
+                            if on { RoundedRectangle(cornerRadius: Theme.Tray.selectionRadius).fill(Theme.accent.opacity(Theme.Tray.selectionOpacity)) }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(freehand ? "自由涂抹" : "吸附文字")
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
             Divider().frame(width: vertical ? Theme.Tray.dividerLength : nil, height: vertical ? nil : Theme.Tray.dividerLength)
