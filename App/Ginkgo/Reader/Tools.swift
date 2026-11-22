@@ -302,25 +302,131 @@ struct ToolHint: View {
     }
 }
 
-/// Shown at the Pencil tip on a squeeze (Apple Pencil Pro): the same tools, in a column.
+/// Shown at the Pencil tip on a squeeze (Apple Pencil Pro): tools on an inner arc and the current tool's options
+/// (line style, colours) on an outer arc, fanned toward the open side of the screen so the hand does not cover it.
+/// Picking a tool keeps the fan open for its options; picking an option, or tapping elsewhere, closes it.
 struct SqueezePalette: View {
     let model: ReaderModel
     let point: CGPoint
     let bounds: CGSize
+    @State private var shown = false
+
+    private enum Item: Hashable {
+        case tool(PenTool), style(MarkStyle), mark(HighlightColor), ink(InkColor)
+    }
+
+    private var options: [Item] {
+        switch model.tool {
+        case .underline?: [.style(.underline), .style(.squiggly)] + HighlightColor.allCases.map(Item.mark)
+        case .highlighter?: HighlightColor.allCases.map(Item.mark)
+        case .pen?: InkColor.allCases.map(Item.ink)
+        default: []
+        }
+    }
+
+    /// The tip, kept far enough from the edges for the inner arc.
+    private var center: CGPoint {
+        let m = Theme.Fan.inner + Theme.Fan.toolSize
+        return CGPoint(x: min(max(point.x, m), bounds.width - m), y: min(max(point.y, m), bounds.height - m))
+    }
+
+    /// The fan opens toward the middle of the screen.
+    private var heading: Double {
+        atan2(bounds.height / 2 - center.y, bounds.width / 2 - center.x)
+    }
+
+    private func position(_ index: Int, of count: Int, radius: CGFloat, step: Double) -> CGPoint {
+        let angle = heading + (Double(index) - Double(count - 1) / 2) * step
+        let p = CGPoint(x: center.x + radius * cos(angle), y: center.y + radius * sin(angle))
+        let r = Theme.Fan.toolSize / 2 + Theme.Space.small
+        return CGPoint(x: min(max(p.x, r), bounds.width - r), y: min(max(p.y, r), bounds.height - r))
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.clear.contentShape(Rectangle())
-                .onTapGesture { withAnimation(.smooth(duration: 0.2)) { model.paletteAt = nil } }
-            ToolTray(model: model, vertical: true)
-                .fixedSize()
-                .shadow(color: Theme.panelShadowColor, radius: Theme.Tray.paletteShadow, y: 4)
-                .onGeometryChange(for: CGSize.self, of: \.size) { size = $0 }
-                .offset(x: min(max(point.x + Theme.Tray.paletteOffset, Theme.rhythm), bounds.width - size.width - Theme.rhythm),
-                        y: min(max(point.y - size.height / 2, Theme.rhythm), bounds.height - size.height - Theme.rhythm))
+                .onTapGesture { close() }
+            Circle().fill(Theme.accent.opacity(0.5)).frame(width: 6, height: 6).position(center)
+            ForEach(Array(PenTool.allCases.enumerated()), id: \.element) { i, tool in
+                toolButton(tool)
+                    .position(shown ? position(i, of: PenTool.allCases.count, radius: Theme.Fan.inner, step: Theme.Fan.toolStep) : center)
+            }
+            let opts = options
+            ForEach(Array(opts.enumerated()), id: \.element) { i, item in
+                optionButton(item)
+                    .position(shown ? position(i, of: opts.count, radius: Theme.Fan.outer, step: Theme.Fan.optionStep) : center)
+                    .transition(.opacity)
+            }
         }
-        .transition(.scale(scale: 0.9, anchor: .leading).combined(with: .opacity))
+        .opacity(shown ? 1 : 0)
+        .onAppear { withAnimation(.spring(duration: 0.28, bounce: 0.2)) { shown = true } }
+        .animation(.spring(duration: 0.25, bounce: 0.15), value: model.tool)
     }
 
-    @State private var size: CGSize = .zero
+    private func close() {
+        withAnimation(.smooth(duration: 0.18)) { model.paletteAt = nil }
+    }
+
+    private func toolButton(_ tool: PenTool) -> some View {
+        let on = model.tool == tool
+        return Button {
+            model.tool = tool
+            if tool == .eraser || tool == .lasso { close() }
+        } label: {
+            Image(systemName: tool.symbol)
+                .font(Theme.Tray.iconFont)
+                .foregroundStyle(on ? Color.white : Theme.ink)
+                .frame(width: Theme.Fan.toolSize, height: Theme.Fan.toolSize)
+                .background(Circle().fill(on ? Theme.accent : Theme.card))
+                .overlay(Circle().strokeBorder(Theme.rule, lineWidth: on ? 0 : Theme.hairline))
+                .shadow(color: Theme.panelShadowColor, radius: Theme.Fan.shadow, y: 2)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tool.label)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    @ViewBuilder private func optionButton(_ item: Item) -> some View {
+        switch item {
+        case .style(let style):
+            let on = model.underlineStyle == style
+            Button { model.underlineStyle = style } label: {
+                UnderlineGlyph(style: style)
+                    .stroke(on ? Color.white : Theme.ink, lineWidth: Theme.Tray.glyphWidth)
+                    .frame(width: Theme.Tray.glyph * 0.8, height: Theme.Tray.glyphHeight)
+                    .frame(width: Theme.Fan.optionSize, height: Theme.Fan.optionSize)
+                    .background(Circle().fill(on ? Theme.accent : Theme.card))
+                    .shadow(color: Theme.panelShadowColor, radius: Theme.Fan.shadow, y: 2)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(style == .underline ? "直线" : "波浪线")
+            .accessibilityAddTraits(on ? .isSelected : [])
+        case .mark(let c):
+            swatch(model.tool == .highlighter ? c.fill : Theme.markLine(c), selected: model.markColor == c, label: "\(c.name)色") {
+                model.markColor = c; close()
+            }
+        case .ink(let c):
+            swatch(c.color, selected: model.inkColor == c, label: "\(c.name)色") { model.inkColor = c; close() }
+        case .tool:
+            EmptyView()
+        }
+    }
+
+    private func swatch(_ fill: Color, selected: Bool, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle().fill(fill)
+                .frame(width: Theme.Fan.swatch, height: Theme.Fan.swatch)
+                .padding(Theme.Fan.swatchRing)
+                .background(Circle().fill(Theme.card))
+                .overlay(Circle().strokeBorder(Theme.accent, lineWidth: selected ? 2 : 0))
+                .shadow(color: Theme.panelShadowColor, radius: Theme.Fan.shadow, y: 2)
+                .frame(width: Theme.Fan.optionSize, height: Theme.Fan.optionSize)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
 }

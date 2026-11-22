@@ -53,7 +53,10 @@ enum DebugLaunch {
         if d.bool(forKey: "demoExpand"), let first = model.notes.first { model.expand(first.id) }
         // `-demoTool <name>` picks a Pencil tool; `-demoPalette YES` opens the squeeze palette.
         if let raw = d.string(forKey: "demoTool") { model.tool = PenTool(rawValue: raw) }
-        if d.bool(forKey: "demoPalette") { model.paletteAt = CGPoint(x: 420, y: 520) }
+        if d.bool(forKey: "demoPalette") {
+            let x = d.double(forKey: "demoPaletteX"), y = d.double(forKey: "demoPaletteY")
+            model.paletteAt = CGPoint(x: x > 0 ? x : 420, y: y > 0 ? y : 520)
+        }
         if d.bool(forKey: "demoNotes") {
             try? await Task.sleep(for: .seconds(4))
             model.showNotes = true

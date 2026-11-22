@@ -4,13 +4,19 @@ import UIKit
 
 /// Paper and ink. Semantic colours adapt around the PDF; the document remains white.
 enum Theme {
-    static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
-        Color(uiColor: UIColor { traits in
-            let hex = traits.userInterfaceStyle == .dark ? dark : light
-            return UIColor(red: CGFloat((hex >> 16) & 255) / 255,
-                           green: CGFloat((hex >> 8) & 255) / 255,
-                           blue: CGFloat(hex & 255) / 255, alpha: 1)
-        })
+    /// A colour that follows light and dark mode. SwiftUI resolves colours on its render thread, so the provider
+    /// must not be tied to the main actor (the app's default isolation): that crashed on device.
+    nonisolated static func dynamic(light: UIColor, dark: UIColor) -> Color {
+        Color(uiColor: UIColor { @Sendable traits in traits.userInterfaceStyle == .dark ? dark : light })
+    }
+
+    nonisolated static func rgb(_ hex: UInt32, alpha: CGFloat = 1) -> UIColor {
+        UIColor(red: CGFloat((hex >> 16) & 255) / 255, green: CGFloat((hex >> 8) & 255) / 255,
+                blue: CGFloat(hex & 255) / 255, alpha: alpha)
+    }
+
+    nonisolated static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
+        dynamic(light: rgb(light), dark: rgb(dark))
     }
     static let paper = adaptive(0xFAF7EF, 0x24232A)
     /// Note cards sit on a white page even in dark mode, so their dark tone is a softer charcoal than panels.
@@ -22,9 +28,7 @@ enum Theme {
     static let accent = adaptive(0x5951A3, 0xBDB5FF)
     static let rule = adaptive(0xD9D4CA, 0x46424E)
     // A dark tint keeps floating glass legible even while it samples a white PDF page.
-    static let glassTint = Color(uiColor: UIColor { traits in
-        traits.userInterfaceStyle == .dark ? UIColor.black.withAlphaComponent(0.78) : UIColor.clear
-    })
+    static let glassTint = dynamic(light: .clear, dark: UIColor.black.withAlphaComponent(0.78))
     static let swatchInk = Color.black.opacity(0.7)
     static let error = adaptive(0xA33838, 0xFFA6A0)
     static let emptyIconFont = Font.system(.largeTitle, design: .serif).weight(.light)
@@ -128,7 +132,7 @@ enum Theme {
         static let focusOpacity = 0.35
         static let borderWidth: CGFloat = 1
         static let marginShadow = Color.black.opacity(0.025)
-        static let floatingShadow = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor.black.withAlphaComponent(0.10) : UIColor.black.withAlphaComponent(0.18) })
+        static let floatingShadow = Theme.dynamic(light: UIColor.black.withAlphaComponent(0.18), dark: UIColor.black.withAlphaComponent(0.10))
         static let marginRadius: CGFloat = 3
         static let marginY: CGFloat = 1
         static let floatingY: CGFloat = 6
@@ -147,9 +151,19 @@ enum Theme {
         static let glyph: CGFloat = 20
         static let glyphHeight: CGFloat = 6
         static let glyphWidth: CGFloat = 1.6
-        static let paletteOffset: CGFloat = 28
-        static let paletteShadow: CGFloat = 14
         static let topInset: CGFloat = 8
+    }
+    /// The squeeze fan around the Pencil tip.
+    enum Fan {
+        static let inner: CGFloat = 78
+        static let outer: CGFloat = 126
+        static let toolSize: CGFloat = 42
+        static let optionSize: CGFloat = 34
+        static let swatch: CGFloat = 24
+        static let swatchRing: CGFloat = 3
+        static let toolStep = 0.6       // radians between tools (about 34°); chord clears a 42pt button
+        static let optionStep = 0.32    // radians between options (about 18°)
+        static let shadow: CGFloat = 5
     }
     /// Underline and wave marks on the page.
     enum Rule {

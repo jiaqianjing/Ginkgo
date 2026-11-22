@@ -1,7 +1,9 @@
 import GinkgoCore
 import PDFKit
 import SwiftData
+import SwiftUI
 import Testing
+import UIKit
 @testable import Ginkgo
 
 @MainActor @Suite struct LibraryTests {
@@ -80,5 +82,14 @@ import Testing
         #expect(types.contains("Squiggly"))
         #expect(!types.contains("Highlight"))
         Library.delete(book, from: context)
+    }
+
+    /// SwiftUI resolves colours on its render thread; a main-actor colour provider crashed there on device.
+    @Test func themeColoursResolveOffTheMainThread() async {
+        let colors = [UIColor(Theme.accent), UIColor(Theme.glassTint), UIColor(Theme.Card.floatingShadow), UIColor(Theme.card)]
+        let resolved = await Task.detached {
+            colors.map { $0.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).cgColor.alpha }
+        }.value
+        #expect(resolved.count == 4)
     }
 }
