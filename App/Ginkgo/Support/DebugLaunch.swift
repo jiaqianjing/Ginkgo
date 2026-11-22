@@ -51,12 +51,15 @@ enum DebugLaunch {
         // `-demoPeek YES` opens every note's floating card; `-demoExpand YES` opens the first note in full.
         if d.bool(forKey: "demoPeek") { model.peeked = Set(model.notes.map(\.id)) }
         if d.bool(forKey: "demoExpand"), let first = model.notes.first { model.expand(first.id) }
+        // `-demoTool <name>` picks a Pencil tool; `-demoPalette YES` opens the squeeze palette.
+        if let raw = d.string(forKey: "demoTool") { model.tool = PenTool(rawValue: raw) }
+        if d.bool(forKey: "demoPalette") { model.paletteAt = CGPoint(x: 420, y: 520) }
         if d.bool(forKey: "demoNotes") {
             try? await Task.sleep(for: .seconds(4))
             model.showNotes = true
         }
         if d.bool(forKey: "demoInk") {
-            model.penOn = true
+            model.tool = .pen
             try? await Task.sleep(for: .seconds(0.6))
             model.pageInk.drawDemoStrokes(page: 0)
         }

@@ -46,8 +46,8 @@ enum Exporter {
                 }
             case .highlight, .question:
                 for rect in a.rects {
-                    let h = PDFAnnotation(bounds: rect, forType: .highlight, withProperties: nil)
-                    h.color = color.withAlphaComponent(0.5)
+                    let h = PDFAnnotation(bounds: rect, forType: subtype(for: record.style), withProperties: nil)
+                    h.color = record.style == .highlight ? color.withAlphaComponent(0.5) : UIColor(Theme.markLine(record.color))
                     page.addAnnotation(h)
                 }
                 if record.hasNote, let last = a.rects.last {
@@ -65,6 +65,16 @@ enum Exporter {
         let url = exportURL(book.title + "（批注）", ext: "pdf")
         guard document.write(to: url) else { throw CocoaError(.fileWriteUnknown) }
         return url
+    }
+
+    /// Highlights, underlines and waves map to the standard Highlight, Underline and Squiggly markup annotations.
+    /// PDFKit has no constant for Squiggly, so its name is built from Underline's to keep the same spelling.
+    static func subtype(for style: MarkStyle) -> PDFAnnotationSubtype {
+        switch style {
+        case .highlight: .highlight
+        case .underline: .underline
+        case .squiggly: PDFAnnotationSubtype(rawValue: PDFAnnotationSubtype.underline.rawValue.replacingOccurrences(of: "Underline", with: "Squiggly"))
+        }
     }
 
     /// Page ink is stored in page points with y growing down (the overlay canvas's space).

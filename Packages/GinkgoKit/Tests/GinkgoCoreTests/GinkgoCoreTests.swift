@@ -89,3 +89,41 @@ import Testing
         #expect(StrokeClassifier.classify(points: pts, textLines: lines, textColumn: column) == .marginNote(nearLine: lines[1]))
     }
 }
+
+@Suite struct StrokeSnappingTests {
+    // Three text lines, 20pt tall with 6pt leading, from x 40 to 400.
+    let lines = (0..<3).map { CGRect(x: 40, y: 100 + CGFloat($0) * 26, width: 360, height: 20) }
+
+    @Test func highlighterOnOneLineKeepsItsEnds() throws {
+        let pts = stride(from: 80.0, through: 200.0, by: 10).map { CGPoint(x: $0, y: 110) }
+        let span = try #require(StrokeSnapping.highlight(points: pts, textLines: lines))
+        #expect(span.start.x == 81 && span.end.x == 199)
+        #expect(span.start.y == lines[0].midY && span.end.y == lines[0].midY)
+    }
+
+    @Test func highlighterAcrossLinesRunsFromFirstToLast() throws {
+        let pts = [CGPoint(x: 300, y: 110), CGPoint(x: 390, y: 112), CGPoint(x: 60, y: 136), CGPoint(x: 150, y: 138)]
+        let span = try #require(StrokeSnapping.highlight(points: pts, textLines: lines))
+        #expect(span.start.y == lines[0].midY && span.end.y == lines[1].midY)
+        #expect(span.start.x == 301 && span.end.x == 149)
+    }
+
+    @Test func highlighterOffTheTextIsNothing() {
+        let pts = [CGPoint(x: 420, y: 110), CGPoint(x: 480, y: 112)]
+        #expect(StrokeSnapping.highlight(points: pts, textLines: lines) == nil)
+    }
+
+    @Test func wavyStrokeUnderALineSnapsToThatLine() throws {
+        let pts = stride(from: 100.0, through: 220.0, by: 4).map { CGPoint(x: $0, y: 123 + sin($0 / 4) * 3) }
+        let span = try #require(StrokeSnapping.underline(points: pts, textLines: lines))
+        #expect(span.start.y == lines[0].midY)
+        #expect(span.start.x == 101 && span.end.x == 219)
+    }
+
+    @Test func lassoNeedsText() {
+        let around = [CGPoint(x: 90, y: 95), CGPoint(x: 200, y: 95), CGPoint(x: 200, y: 125), CGPoint(x: 90, y: 125)]
+        #expect(StrokeSnapping.lasso(points: around, textLines: lines) != nil)
+        let margin = around.map { CGPoint(x: $0.x + 400, y: $0.y) }
+        #expect(StrokeSnapping.lasso(points: margin, textLines: lines) == nil)
+    }
+}

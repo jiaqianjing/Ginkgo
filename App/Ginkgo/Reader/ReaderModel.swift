@@ -67,17 +67,78 @@ final class ReaderModel {
     var asking: AskTarget?
     var showSettings = false
     var showNotes = false
-    /// Writing mode: Pencil (or the mouse in the simulator) draws on the page instead of selecting text.
-    var penOn = false {
+    /// The Pencil's tool. Nil: the Pencil selects text like a finger. Fingers never draw (except the mouse in the
+    /// simulator, which draws whenever a tool is chosen).
+    var tool: PenTool? = ToolSettings.tool {
         didSet {
-            pdfView?.isInMarkupMode = penOn
-            pageInk.drawingEnabled = penOn
-            if !penOn { pageInk.saveAll() }
-            clearSelection()
+            ToolSettings.tool = tool
+            if let oldValue, oldValue != tool { previousTool = oldValue }
+            pageInk.toolChanged()
+            (pdfView as? ReaderPDFView)?.reservePencil(tool != nil)
+            if tool == nil { pageInk.saveAll() }
+            paletteAt = nil
         }
     }
-    /// Colour used when an underline stroke becomes a highlight.
-    var penHighlightColor: HighlightColor = .yellow
+    /// For the Pencil's "switch to previous tool" double-tap.
+    @ObservationIgnored private var previousTool: PenTool?
+    var markColor = ToolSettings.markColor { didSet { ToolSettings.markColor = markColor; pageInk.toolChanged() } }
+    var inkColor = ToolSettings.inkColor { didSet { ToolSettings.inkColor = inkColor; pageInk.toolChanged() } }
+    var underlineStyle = ToolSettings.underlineStyle { didSet { ToolSettings.underlineStyle = underlineStyle } }
+    var showToolHint = !ToolSettings.seenHint
+    /// Where a Pencil squeeze opened the tool palette, in reader coordinates.
+    var paletteAt: CGPoint?
+    /// Pencil hover position, for the tool preview ring.
+    var hoverPoint: CGPoint?
+    /// The selection came from a lasso; we draw it ourselves since PDFKit may not show selections set in code.
+    private(set) var selectionFromPencil = false
+
+    /// Tapping the current tool puts it down; tapping another picks it up.
+    func select(_ tool: PenTool) {
+        self.tool = self.tool == tool ? nil : tool
+        dismissToolHint()
+    }
+
+    func dismissToolHint() {
+        guard showToolHint else { return }
+        showToolHint = false
+        ToolSettings.seenHint = true
+    }
+
+    /// Double-tap on the Pencil barrel, following the system setting.
+    func pencilTapped(_ action: UIPencilPreferredAction) {
+        switch action {
+        case .switchEraser: tool = tool == .eraser ? (previousTool ?? .pen) : .eraser
+        case .switchPrevious: tool = previousTool ?? (tool == nil ? .highlighter : nil)
+        case .showColorPalette, .showContextualPalette: paletteAt = paletteAt == nil ? hoverPoint ?? defaultPalettePoint : nil
+        default: break
+        }
+    }
+
+    /// Squeeze on Apple Pencil Pro: the tool palette at the tip, or the system's other squeeze actions.
+    func pencilSqueezed(at point: CGPoint?, action: UIPencilPreferredAction) {
+        switch action {
+        case .showContextualPalette, .showColorPalette: paletteAt = paletteAt == nil ? (point ?? defaultPalettePoint) : nil
+        case .switchEraser, .switchPrevious: pencilTapped(action)
+        default: break
+        }
+    }
+
+    private var defaultPalettePoint: CGPoint {
+        CGPoint(x: (pdfView?.bounds.width ?? 600) / 2, y: (pdfView?.bounds.height ?? 800) / 3)
+    }
+
+    /// The selection a lasso made: shows the selection menu.
+    func selectFromPencil(_ selection: PDFSelection) {
+        pdfView?.currentSelection = selection
+        selectionChanged(selection)
+        selectionFromPencil = true
+    }
+
+    /// The eraser passed over a point: remove plain marks there (notes keep their answers; delete those from the card).
+    func eraseMark(at point: CGPoint) {
+        guard let id = annotation(at: point), let record = annotation(id), !record.hasNote, record.kind != .ink else { return }
+        withAnimation(.smooth(duration: 0.15)) { delete(id) }
+    }
 
     init(book: Book, document: PDFDocument, context: ModelContext) {
         self.book = book
@@ -136,9 +197,10 @@ final class ReaderModel {
     }
 
     @discardableResult
-    func highlight(_ selection: PDFSelection, color: HighlightColor) -> AnnotationRecord? {
+    func highlight(_ selection: PDFSelection, color: HighlightColor, style: MarkStyle = .highlight) -> AnnotationRecord? {
         guard let anchor = Self.anchor(for: selection, in: document) else { return nil }
         let record = AnnotationRecord(kind: .highlight, anchor: anchor, color: color)
+        if style != .highlight { record.styleRaw = style.rawValue }
         record.book = book
         context.insert(record)
         // Only end the selection this highlight came from (a margin note may land while another is showing).
@@ -282,6 +344,7 @@ final class ReaderModel {
     func selectionChanged(_ selection: PDFSelection?) {
         let text = selection?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         self.selection = text.isEmpty ? nil : selection
+        selectionFromPencil = false
         if self.selection != nil { focused = nil }
         recomputeSelectionRect()
     }
@@ -291,6 +354,7 @@ final class ReaderModel {
         selection = nil
         selectionRect = nil
         selectionLines = []
+        selectionFromPencil = false
     }
 
     // MARK: - Geometry

@@ -6,18 +6,18 @@ import SwiftUI
 import Vision
 
 /// One PencilKit canvas per PDF page, attached through PDFKit's overlay provider, so ink scrolls and zooms with
-/// the page. A pause after writing interprets the new strokes: an underline becomes a highlight, a loop selects
-/// text, writing in the page margin becomes a handwritten question; anything else stays as ink.
-final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate {
+/// the page. New strokes are interpreted by the tool that drew them (told apart by ink type): highlighter and
+/// underline strokes snap to the text and become marks, a lasso selects text, and pen writing in the page margin
+/// becomes a handwritten question. Other pen strokes stay as ink.
+final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
     weak var model: ReaderModel?
     private var canvases: [Int: PKCanvasView] = [:]
     private var processed: [Int: Int] = [:]
     private var pending: [Int: DispatchWorkItem] = [:]
     private var applyingChange = false
 
-    var drawingEnabled = false {
-        didSet { canvases.values.forEach(configure) }
-    }
+    /// Re-reads the model's tool and colours onto every canvas.
+    func toolChanged() { canvases.values.forEach(configure) }
 
     // MARK: Overlay provider
 
@@ -51,8 +51,46 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
         #else
         canvas.drawingPolicy = .pencilOnly
         #endif
-        canvas.isUserInteractionEnabled = drawingEnabled
-        canvas.tool = PKInkingTool(.pen, color: UIColor(red: 0.18, green: 0.2, blue: 0.26, alpha: 1), width: 2.2)
+        canvas.isScrollEnabled = false
+        let tool = model?.tool
+        canvas.isUserInteractionEnabled = tool != nil
+        switch tool {
+        case .highlighter?:
+            canvas.tool = PKInkingTool(.marker, color: UIColor(model?.markColor.fill ?? .yellow).withAlphaComponent(0.5), width: 14)
+        case .underline?:
+            canvas.tool = PKInkingTool(.monoline, color: UIColor(Theme.markLine(model?.markColor ?? .yellow)), width: 1.6)
+        case .lasso?:
+            canvas.tool = PKInkingTool(.pencil, color: UIColor(Theme.accent).withAlphaComponent(0.7), width: 2)
+        case .eraser?:
+            canvas.tool = PKEraserTool(.vector)
+        default:
+            canvas.tool = PKInkingTool(.pen, color: UIColor(model?.inkColor.color ?? Theme.penGraphite), width: 2.2)
+        }
+        installEraserTracking(on: canvas, active: tool == .eraser)
+    }
+
+    /// PencilKit's eraser only touches ink; this follows it so plain marks under its path are erased too.
+    private func installEraserTracking(on canvas: PKCanvasView, active: Bool) {
+        let existing = canvas.gestureRecognizers?.first { $0.name == "ginkgo.eraser" }
+        if !active { existing?.isEnabled = false; return }
+        if let existing { existing.isEnabled = true; return }
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(erasing(_:)))
+        pan.name = "ginkgo.eraser"
+        pan.delegate = self
+        pan.cancelsTouchesInView = false
+        #if !targetEnvironment(simulator)
+        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+        #endif
+        canvas.addGestureRecognizer(pan)
+    }
+
+    @objc private func erasing(_ g: UIPanGestureRecognizer) {
+        guard let model, let pdfView = model.pdfView, let view = g.view else { return }
+        model.eraseMark(at: view.convert(g.location(in: view), to: pdfView))
+    }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
     }
 
     func saveAll() {
@@ -70,7 +108,9 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
             self.interpret(canvas, page: index)
         }
         pending[index] = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1, execute: work)
+        // Handwriting needs a pause to finish a word; marks and lassos can act almost at once.
+        let last = canvas.drawing.strokes.last.flatMap { PenTool(inkType: $0.ink.inkType) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (last == .pen ? 1.1 : 0.25), execute: work)
     }
 
     private func interpret(_ canvas: PKCanvasView, page index: Int) {
@@ -83,43 +123,60 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
         let space = PageSpace(page: page, canvas: canvas.bounds.size, box: model.pdfView?.displayBox ?? .cropBox)
         let lines = space.textLines()
         let column = lines.reduce(CGRect.null) { $0.union($1) }
-        let intents = fresh.map { stroke in
-            StrokeClassifier.classify(points: stroke.path.map { $0.location.applying(stroke.transform) },
-                                      textLines: lines, textColumn: column)
+        func points(_ stroke: PKStroke) -> [CGPoint] { stroke.path.map { $0.location.applying(stroke.transform) } }
+        func selection(_ span: StrokeSnapping.Span) -> PDFSelection? {
+            guard let sel = page.selection(from: space.toPage(span.start), to: space.toPage(span.end)),
+                  sel.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return nil }
+            return sel
         }
 
         var keep: [PKStroke] = Array(strokes[..<start])
-        // Several strokes written in the margin together are one handwritten question.
-        let marginStrokes = zip(fresh, intents).filter { if case .marginNote = $0.1 { return true }; return false }.map(\.0)
-        if !marginStrokes.isEmpty, case .marginNote(let line)? = intents.first(where: { if case .marginNote = $0 { return true }; return false }) {
+        var penStrokes: [PKStroke] = []
+        for stroke in fresh {
+            switch PenTool(inkType: stroke.ink.inkType) {
+            case .highlighter?:
+                if let span = StrokeSnapping.highlight(points: points(stroke), textLines: lines), let sel = selection(span) {
+                    model.highlight(sel, color: model.markColor)
+                } else {
+                    keep.append(stroke)  // a marker stroke off the text stays as marker ink
+                }
+            case .underline?:
+                if let span = StrokeSnapping.underline(points: points(stroke), textLines: lines), let sel = selection(span) {
+                    model.highlight(sel, color: model.markColor, style: model.underlineStyle)
+                } else {
+                    keep.append(stroke)
+                }
+            case .lasso?:
+                // A lasso never stays on the page: it either selects text or disappears.
+                if let box = StrokeSnapping.lasso(points: points(stroke), textLines: lines),
+                   let sel = page.selection(for: space.toPage(box)),
+                   sel.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+                    model.selectFromPencil(sel)
+                }
+            default:
+                penStrokes.append(stroke)
+            }
+        }
+        // Pen: strokes in the page margin together are one handwritten question; the rest stay as ink.
+        var marginLine: CGRect?
+        var marginStrokes: [PKStroke] = []
+        for stroke in penStrokes {
+            if case .marginNote(let line) = StrokeClassifier.classify(points: points(stroke), textLines: lines, textColumn: column) {
+                marginLine = marginLine ?? line
+                marginStrokes.append(stroke)
+            } else {
+                keep.append(stroke)
+            }
+        }
+        if let line = marginLine {
             let ink = PKDrawing(strokes: marginStrokes)
             if let selection = page.selectionForLine(at: space.toPage(CGPoint(x: line.midX, y: line.midY))) {
                 Task { @MainActor in
                     let text = await HandwritingReader.read(ink)
                     model.addHandwrittenQuestion(ink, recognized: text, on: selection)
                 }
-            }
-        }
-        for (stroke, intent) in zip(fresh, intents) {
-            switch intent {
-            case .underline(let line, let x0, let x1):
-                let a = space.toPage(CGPoint(x: x0 + 1, y: line.midY)), b = space.toPage(CGPoint(x: x1 - 1, y: line.midY))
-                if let sel = page.selection(from: a, to: b), sel.string?.isEmpty == false {
-                    model.highlight(sel, color: model.penHighlightColor)
-                } else {
-                    keep.append(stroke)
-                }
-            case .circle(let bounds):
-                if let sel = page.selection(for: space.toPage(bounds)), sel.string?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-                    model.pdfView?.currentSelection = sel
-                    model.selectionChanged(sel)
-                } else {
-                    keep.append(stroke)
-                }
-            case .marginNote:
-                break
-            case .ink:
-                keep.append(stroke)
+            } else {
+                keep.append(contentsOf: marginStrokes)
             }
         }
         applyingChange = true
@@ -132,18 +189,18 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
 
 #if DEBUG
 extension PageInk {
-    /// Draws an underline, a loop and a margin "?" on a page, as a finger would, to exercise `interpret`.
+    /// Draws an underline (underline tool), a loop (lasso), a highlighter pass and a margin "?" (pen).
     func drawDemoStrokes(page index: Int) {
         guard let canvas = canvases[index], let page = model?.document.page(at: index) else { return }
         let lines = PageSpace(page: page, canvas: canvas.bounds.size, box: .cropBox).textLines()
         guard lines.count > 22 else { return }
         let column = lines.reduce(CGRect.null) { $0.union($1) }
-        func stroke(_ pts: [CGPoint]) -> PKStroke {
+        func stroke(_ pts: [CGPoint], _ inkType: PKInk.InkType = .pen) -> PKStroke {
             let path = PKStrokePath(controlPoints: pts.enumerated().map {
                 PKStrokePoint(location: $0.element, timeOffset: Double($0.offset) * 0.01, size: CGSize(width: 2.5, height: 2.5),
                               opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
             }, creationDate: Date())
-            return PKStroke(ink: PKInk(.pen, color: .darkGray), path: path)
+            return PKStroke(ink: PKInk(inkType, color: .darkGray), path: path)
         }
         let u = lines[17]
         let underline = stride(from: u.minX + 4, through: u.minX + u.width * 0.6, by: 6).map { CGPoint(x: $0, y: u.maxY + 1) }
@@ -160,7 +217,10 @@ extension PageInk {
             return CGPoint(x: x + 9, y: y + 14 + (t - 0.7) * 20)
         }
         let dot = [CGPoint(x: x + 9, y: y + 24), CGPoint(x: x + 9.5, y: y + 24.5)]
-        canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes + [stroke(underline), stroke(loop), stroke(question), stroke(dot)])
+        let h = lines[13]
+        let marker = stride(from: h.minX + 10, through: h.minX + h.width * 0.5, by: 6).map { CGPoint(x: $0, y: h.midY) }
+        canvas.drawing = PKDrawing(strokes: canvas.drawing.strokes + [stroke(underline, .monoline), stroke(loop, .pencil),
+                                                                      stroke(marker, .marker), stroke(question), stroke(dot)])
     }
 }
 #endif

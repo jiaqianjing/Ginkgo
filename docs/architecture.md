@@ -43,7 +43,8 @@ Ginkgo/
 
 - **页边排版（MarginLayout）**：输入每条批注的锚点高度和卡片高度，输出卡片位置；后面的卡片往下推，互不重叠。横屏 A 用它排页边栏；竖屏 B 用它排展开的卡片。原型里的 `stack()` 搬过来并补测试。
 
-- **笔画分类（StrokeClassifier）**：Pencil 抬笔后，根据笔画形状和落点判断意图：
+- **笔画吸附（StrokeSnapping）**（2026-11-22 起，#3）：工具是用户明确选的，不再靠猜。荧光笔的笔画吸附到它涂过的文字行，划线（直线、波浪线）吸附到上方那一行，圈选取它圈住的范围。标记的样式存在 `MarkStyle`（highlight / underline / squiggly）。
+- **笔画分类（StrokeClassifier）**：现在只用于钢笔，判断是不是写在页边的提问。原来的规则如下：
   - 横着划过文字：高亮，吸附到所在行。
   - 圈住一段：选中这段，弹出翻译 / 解释 / 提问。
   - 写在页边空白处：手写提问，挂到旁边那一行。
@@ -68,7 +69,7 @@ Ginkgo/
 - **阅读器（Reader）**：
   - `PDFView` 包装成 SwiftUI 视图，记住每本书读到哪一页。
   - 点一下屏幕，切换工具栏的显示和隐藏。
-  - **页内叠加层**：用 `PDFPageOverlayViewProvider` 给每页挂一个 PencilKit 画布，笔迹滚动和缩放时自动跟随页面。画布尺寸就是页面的点数（与缩放无关），所以笔迹直接按页面坐标存储。书写模式打开 `isInMarkupMode`，关掉时手指恢复选字。高亮记号画在页面上方的 SwiftUI 层里（和页边卡片共用一套坐标换算）。
+  - **页内叠加层**：用 `PDFPageOverlayViewProvider` 给每页挂一个 PencilKit 画布，笔迹滚动和缩放时自动跟随页面。画布尺寸就是页面的点数（与缩放无关），所以笔迹直接按页面坐标存储。没有书写模式（#3）：选了工具时画布只接 Pencil（`drawingPolicy = .pencilOnly`），PDFKit 自己的手势只接手指（`ReaderPDFView.reservePencil`），所以手指照常滚动和选字。每种工具用不同的墨水类型画，抬笔后按墨水类型解释笔画（`PageInk.interpret`）。双击笔杆和捏合走 `UIPencilInteraction`，跟随系统设置。高亮记号画在页面上方的 SwiftUI 层里（和页边卡片共用一套坐标换算）。
   - **页边层**（2026-11-22 起，#2）：书页默认占满宽度；每条批注在页面右边缘一个贴签（`NoteTab`），点开是浮起的卡片（`FoldedNotesLayer`，长回答截断并给出「展开全文」；下方放不下时放到原文上方）。侧边栏（`SidenoteColumn` 加连线）只在宽窗口出现，条件是回顾模式或有一条展开的批注（`ReaderModel.expanded`）；窄窗口里展开的批注用右侧浮起的面板（`ExpandedNotePanel`）。都在页面上方的 SwiftUI 层里，用 PDFKit 做坐标换算。
   - 宽窗口的判断依据是可用宽度，不是设备方向，这样分屏和台前调度下也成立（`ReaderLayout.isWide`）。
   - 阅读模式下批注几乎隐形；回顾模式下全部展开。

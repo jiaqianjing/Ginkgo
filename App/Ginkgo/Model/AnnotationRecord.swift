@@ -8,6 +8,8 @@ final class AnnotationRecord {
     var id: UUID = UUID()
     var kindRaw: String = AnnotationKind.highlight.rawValue
     var colorRaw: String = HighlightColor.yellow.rawValue
+    /// `MarkStyle` raw value; nil means a highlight (records from before underlines existed).
+    var styleRaw: String?
     var anchorData: Data?
     var createdAt: Date = Date.now
     /// PencilKit drawing data for ink and handwritten questions.
@@ -31,6 +33,7 @@ final class AnnotationRecord {
 
     var kind: AnnotationKind { AnnotationKind(rawValue: kindRaw) ?? .highlight }
     var color: HighlightColor { HighlightColor(rawValue: colorRaw) ?? .yellow }
+    var style: MarkStyle { styleRaw.flatMap(MarkStyle.init(rawValue:)) ?? .highlight }
     var anchor: Anchor? { anchorData.flatMap { try? Anchor.decoded(from: $0) } }
 
     var replyState: ReplyState {

@@ -1,4 +1,5 @@
 import PDFKit
+import PencilKit
 import SwiftUI
 
 /// PDFKit's view in SwiftUI. Reports page, selection, scroll and zoom changes to the model, and routes taps:
@@ -19,6 +20,11 @@ struct PDFKitView: UIViewRepresentable {
         view.pageOverlayViewProvider = model.pageInk
         view.document = model.document
         model.pdfView = view
+        view.pencilInteraction.delegate = context.coordinator
+        view.addInteraction(view.pencilInteraction)
+        let hover = UIHoverGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.hovered(_:)))
+        hover.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+        view.addGestureRecognizer(hover)
         let doc = model.document
         if let page = doc.page(at: min(model.book.lastPageIndex, max(doc.pageCount - 1, 0))) {
             view.go(to: page)
@@ -36,7 +42,10 @@ struct PDFKitView: UIViewRepresentable {
         tap.cancelsTouchesInView = false
         tap.delegate = c
         view.addGestureRecognizer(tap)
-        DispatchQueue.main.async { c.attachScrollObserver(view) }
+        DispatchQueue.main.async {
+            c.attachScrollObserver(view)
+            view.reservePencil(model.tool != nil)
+        }
         return view
     }
 
@@ -44,7 +53,7 @@ struct PDFKitView: UIViewRepresentable {
         context.coordinator.onPageChange = onPageChange
     }
 
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate, UIPencilInteractionDelegate {
         let model: ReaderModel
         var onPageChange: (Int) -> Void
         private var observations: [NSKeyValueObservation] = []
@@ -75,7 +84,7 @@ struct PDFKitView: UIViewRepresentable {
         @objc func selectionChanged(_ note: Notification) {
             let selection = (note.object as? PDFView)?.currentSelection
             // In writing mode PDFKit drops selections we set from a Pencil loop; keep ours until the reader acts.
-            if model.penOn && selection == nil && model.selection != nil { return }
+            if model.selectionFromPencil && selection == nil && model.selection != nil { return }
             model.selectionChanged(selection)
         }
 
@@ -122,6 +131,27 @@ struct PDFKitView: UIViewRepresentable {
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
             true
         }
+
+        // MARK: Apple Pencil
+
+        func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
+            withAnimation(.smooth(duration: 0.2)) { model.pencilTapped(UIPencilInteraction.preferredTapAction) }
+        }
+
+        func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
+            guard squeeze.phase == .ended, let view = interaction.view else { return }
+            let point = squeeze.hoverPose.map { view.convert($0.location, to: model.pdfView) }
+            withAnimation(.smooth(duration: 0.2)) {
+                model.pencilSqueezed(at: point, action: UIPencilInteraction.preferredSqueezeAction)
+            }
+        }
+
+        @objc func hovered(_ g: UIHoverGestureRecognizer) {
+            switch g.state {
+            case .began, .changed: model.hoverPoint = model.tool == nil ? nil : g.location(in: g.view)
+            default: model.hoverPoint = nil
+            }
+        }
     }
 }
 
@@ -130,6 +160,31 @@ struct PDFKitView: UIViewRepresentable {
 final class ReaderPDFView: PDFView {
     var onLayout: (() -> Void)?
     private var lastWidth: CGFloat = 0
+    let pencilInteraction = UIPencilInteraction()
+    private var savedTouchTypes: [ObjectIdentifier: [NSNumber]] = [:]
+
+    /// While a tool is chosen, PDFKit's own gestures (scrolling, text selection) only take fingers, so every Pencil
+    /// stroke reaches the page's ink canvas. The simulator's mouse is both, so it is left alone there.
+    func reservePencil(_ reserve: Bool) {
+        #if !targetEnvironment(simulator)
+        let fingers = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        func visit(_ view: UIView) {
+            if view is PKCanvasView { return }
+            for g in view.gestureRecognizers ?? [] where !(g is UIHoverGestureRecognizer) && !(g.delegate is PDFKitView.Coordinator) {
+                let key = ObjectIdentifier(g)
+                if reserve {
+                    if savedTouchTypes[key] == nil { savedTouchTypes[key] = g.allowedTouchTypes }
+                    g.allowedTouchTypes = fingers
+                } else if let saved = savedTouchTypes[key] {
+                    g.allowedTouchTypes = saved
+                }
+            }
+            view.subviews.forEach(visit)
+        }
+        visit(self)
+        if !reserve { savedTouchTypes.removeAll() }
+        #endif
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

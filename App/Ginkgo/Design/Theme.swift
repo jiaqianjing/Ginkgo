@@ -135,6 +135,32 @@ enum Theme {
         /// Answer lines shown in a floating card before it offers to open in full.
         static let compactLines = 7
     }
+    /// The tool tray at the top of the reader and the squeeze palette.
+    enum Tray {
+        static let button: CGFloat = 36
+        static let iconFont = Font.system(size: 17, weight: .regular)
+        static let selectionRadius: CGFloat = 10
+        static let selectionOpacity = 0.14
+        static let tintWidth: CGFloat = 14
+        static let tintHeight: CGFloat = 3
+        static let dividerLength: CGFloat = 22
+        static let glyph: CGFloat = 20
+        static let glyphHeight: CGFloat = 6
+        static let glyphWidth: CGFloat = 1.6
+        static let paletteOffset: CGFloat = 28
+        static let paletteShadow: CGFloat = 14
+        static let topInset: CGFloat = 8
+    }
+    /// Underline and wave marks on the page.
+    enum Rule {
+        static let width: CGFloat = 1.6
+        static let gap: CGFloat = 1.5
+        static let waveAmplitude: CGFloat = 1.6
+        static let waveLength: CGFloat = 7
+        static let focusFillOpacity = 0.18
+    }
+    static let hoverRing: CGFloat = 10
+
     /// Note tabs on the page edge.
     enum Tab {
         static let width: CGFloat = 26
@@ -165,6 +191,18 @@ enum Theme {
         case .violet: Color(red: 0.68, green: 0.59, blue: 0.91)
         }
     }
+    /// Pen ink and rules drawn on the white page: fixed dark tones, since the PDF stays white in dark mode.
+    static let penGraphite = Color(red: 0.18, green: 0.2, blue: 0.26)
+    static func markLine(_ color: HighlightColor) -> Color {
+        switch color {
+        case .yellow: Color(red: 0.80, green: 0.56, blue: 0.05)
+        case .green: Color(red: 0.19, green: 0.50, blue: 0.30)
+        case .blue: Color(red: 0.16, green: 0.40, blue: 0.66)
+        case .pink: Color(red: 0.70, green: 0.24, blue: 0.36)
+        case .violet: Color(red: 0.43, green: 0.32, blue: 0.70)
+        }
+    }
+
     static func highlightInk(_ color: HighlightColor) -> Color {
         switch color {
         case .yellow: adaptive(0x785513, 0xE8C877)

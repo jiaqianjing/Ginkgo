@@ -62,4 +62,23 @@ import Testing
         #expect(types.contains("Text"))
         Library.delete(book, from: context)
     }
+
+    @Test func underlinesAndWavesExportAsStandardMarkup() throws {
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        func mark(_ text: String, _ style: MarkStyle) throws -> AnnotationRecord {
+            let sel = try #require(doc.findString(text, withOptions: []).first)
+            let r = AnnotationRecord(kind: .highlight, anchor: try #require(ReaderModel.anchor(for: sel, in: doc)), color: .blue)
+            r.styleRaw = style.rawValue
+            return r
+        }
+        let records = [try mark("hibakujumoku", .underline), try mark("living fossil", .squiggly)]
+        let url = try Exporter.writeAnnotatedPDF(for: book, annotations: records)
+        let out = try #require(PDFDocument(url: url))
+        let types = (0..<out.pageCount).flatMap { out.page(at: $0)!.annotations.compactMap(\.type) }
+        #expect(types.contains("Underline"))
+        #expect(types.contains("Squiggly"))
+        #expect(!types.contains("Highlight"))
+        Library.delete(book, from: context)
+    }
 }

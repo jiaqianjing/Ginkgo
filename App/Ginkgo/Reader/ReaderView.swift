@@ -67,7 +67,7 @@ private struct ReaderContent: View {
                 Group {
                     if layout.hasMarginColumn {
                         ConnectorLayer(model: model, layout: layout).allowsHitTesting(false)
-                        if model.penOn {
+                        if model.tool == .pen {
                             MarginInkCanvas(model: model, layout: layout)
                                 .frame(width: layout.marginWidth, height: geo.size.height)
                                 .offset(x: layout.pageWidth)
@@ -87,13 +87,20 @@ private struct ReaderContent: View {
                 SelectionMenu(model: model, layout: layout)
                 AnnotationMenu(model: model, layout: layout)
 
-                if model.penOn {
-                    PenBanner(color: $model.penHighlightColor) { model.penOn = false }
-                        .frame(maxWidth: layout.pageWidth - Theme.menuInset * 2)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, Theme.cardInset)
-                        .frame(width: layout.pageWidth)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                VStack(spacing: Theme.rhythm) {
+                    ToolTray(model: model)
+                    if model.showToolHint {
+                        ToolHint { withAnimation(.smooth) { model.dismissToolHint() } }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+                .padding(.top, Theme.Tray.topInset)
+                .frame(width: layout.pageWidth)
+                .opacity(model.chromeVisible ? 1 : 0)
+                .allowsHitTesting(model.chromeVisible)
+
+                if let point = model.paletteAt {
+                    SqueezePalette(model: model, point: point, bounds: CGSize(width: layout.pageWidth, height: geo.size.height))
                 }
 
                 if model.showNotes {
@@ -124,7 +131,6 @@ private struct ReaderContent: View {
         .sheet(isPresented: $model.showSettings) { SettingsView() }
 
         .onAppear { pageIndex = model.book.lastPageIndex }
-        .onPencilDoubleTap { _ in withAnimation { model.penOn.toggle() } }
         .onDisappear { model.pageInk.saveAll() }
         .task { await DebugLaunch.annotateIfRequested(model) }
     }
@@ -138,10 +144,6 @@ private struct ReaderContent: View {
             .frame(width: 140)
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            Button(model.penOn ? "停止书写" : "用笔书写",
-                   systemImage: model.penOn ? "pencil.tip.crop.circle.fill" : "pencil.tip.crop.circle") {
-                withAnimation { model.penOn.toggle() }
-            }
             Button("批注", systemImage: "list.bullet.rectangle") { withAnimation(.smooth) { model.showNotes.toggle() } }
             Button("AI 设置", systemImage: "gearshape") { model.showSettings = true }
         }
@@ -151,48 +153,6 @@ private struct ReaderContent: View {
         pageIndex = index
         model.book.lastPageIndex = index
     }
-}
-
-/// Shown while writing: what the Pencil gestures do, the underline colour, and a way out.
-private struct PenBanner: View {
-    @Binding var color: HighlightColor
-    var done: () -> Void
-
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: Theme.cardInset) { instructions; controls }
-            VStack(spacing: Theme.rhythm) { instructions; controls }
-        }
-        .padding(.horizontal, Theme.cardInset)
-        .padding(.vertical, Theme.rhythm)
-        .glassEffect(.regular.tint(Theme.glassTint).interactive(), in: .rect(cornerRadius: Theme.panelRadius))
-    }
-
-    private var instructions: some View {
-        Label("划线高亮 · 圈选提问 · 页边写字提问", systemImage: "pencil.tip")
-            .font(Theme.footnoteFont)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var controls: some View {
-        HStack(spacing: Theme.rhythm) {
-            ForEach(HighlightColor.allCases, id: \.self) { c in
-                Button { color = c } label: {
-                    Circle().fill(c.fill)
-                        .overlay { Circle().strokeBorder(c.ink, lineWidth: color == c ? 2 : 0) }
-                        .overlay { if color == c { Image(systemName: "checkmark").font(Theme.checkFont).foregroundStyle(Theme.swatchInk) } }
-                        .frame(width: Theme.swatchSize, height: Theme.swatchSize)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(c.name)色")
-                .accessibilityAddTraits(color == c ? .isSelected : [])
-            }
-            Divider().frame(height: Theme.swatchSize)
-            Button("完成", action: done).font(Theme.doneFont)
-        }
-    }
-
 }
 
 private struct MarginBackground: View {

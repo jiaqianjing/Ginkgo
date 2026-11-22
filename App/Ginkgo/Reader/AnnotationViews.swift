@@ -11,7 +11,7 @@ struct MarksLayer: View {
 
     var body: some View {
         Canvas { ctx, _ in
-            if model.penOn {
+            if model.selectionFromPencil {
                 for line in model.selectionLines {
                     ctx.fill(Path(roundedRect: line.insetBy(dx: -1, dy: -1), cornerRadius: Theme.markRadius),
                              with: .color(Theme.accent.opacity(Theme.Mark.selectionOpacity)))
@@ -21,6 +21,26 @@ struct MarksLayer: View {
                 guard let g = model.geometry[record.id] else { continue }
                 let focused = model.focused == record.id
                 let opacity = focused ? Theme.markFocusOpacity : (model.mode == .reading ? Theme.markReadingOpacity : Theme.markReviewOpacity)
+                if record.style != .highlight {
+                    // Rules: drawn in a dark tone of the colour, with a faint fill only while focused.
+                    for line in g.lines {
+                        if focused {
+                            ctx.fill(Path(roundedRect: line.insetBy(dx: -1.5, dy: -0.5), cornerRadius: Theme.markRadius),
+                                     with: .color(record.color.fill.opacity(Theme.Rule.focusFillOpacity)))
+                        }
+                        var p = Path()
+                        let y = line.maxY + Theme.Rule.gap
+                        if record.style == .squiggly {
+                            p.addWave(from: CGPoint(x: line.minX, y: y), to: CGPoint(x: line.maxX, y: y),
+                                      amplitude: Theme.Rule.waveAmplitude, wavelength: Theme.Rule.waveLength)
+                        } else {
+                            p.move(to: CGPoint(x: line.minX, y: y))
+                            p.addLine(to: CGPoint(x: line.maxX, y: y))
+                        }
+                        ctx.stroke(p, with: .color(Theme.markLine(record.color)), style: StrokeStyle(lineWidth: Theme.Rule.width, lineCap: .round, lineJoin: .round))
+                    }
+                    continue
+                }
                 for line in g.lines {
                     let r = line.insetBy(dx: -1.5, dy: -0.5)
                     ctx.fill(Path(roundedRect: r, cornerRadius: Theme.markRadius), with: .color(record.color.fill.opacity(opacity)))
@@ -36,6 +56,23 @@ struct MarksLayer: View {
             }
         }
         .blendMode(.multiply)
+        .overlay {
+            // Pencil hover: where the current tool will land.
+            if let p = model.hoverPoint, let tool = model.tool {
+                Circle()
+                    .strokeBorder(hoverColor(tool), lineWidth: 1.5)
+                    .frame(width: Theme.hoverRing, height: Theme.hoverRing)
+                    .position(p)
+            }
+        }
+    }
+
+    private func hoverColor(_ tool: PenTool) -> Color {
+        switch tool {
+        case .highlighter, .underline: Theme.markLine(model.markColor)
+        case .pen: model.inkColor.color
+        default: Theme.accent
+        }
     }
 }
 
