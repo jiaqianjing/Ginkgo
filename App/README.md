@@ -55,6 +55,7 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 **批注列表与导出**（工具栏的列表按钮）
 - 按页码列出全部批注，可以只看 AI 批注或只看高亮；点一条就跳过去。
 - 右上角导出：Markdown 笔记，或带标准批注的 PDF（高亮、笔迹，AI 回答放在文字批注里），可以在别的阅读器里打开。
+- 同一个菜单里有「清除全部批注…」：恢复到导入时的样子（PDF 原文件从不改动）。弹窗列出要删的内容，可以先导出笔记再清除；书没关之前，撤销一步就能整批恢复。书库里长按封面也能清除，但那里不能撤销。
 
 ## 已知限制
 
@@ -73,6 +74,7 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 - `-demoAnnotate YES`：自动加一条高亮和三条 AI 批注。AI 需要 key，可以用 `SIMCTL_CHILD_OPENAI_API_KEY` 传给模拟器。
 - `-demoMode review`：以回顾模式打开。
 - `-demoInk YES`：用划线、圈选、荧光笔和钢笔各画一笔（页边一个问号），检查识别结果。
+- `-demoClear YES`：演示结束后清除全部批注。
 - `-demoUndo N`、`-demoRedo N`：演示结束后撤销 N 步，再重做 N 步。
 - `-demoTool <highlighter|underline|lasso|pen|eraser>`：选中工具；`-demoPalette YES`：打开捏合后的工具面板。
 - `-demoNotes YES`：打开批注列表。

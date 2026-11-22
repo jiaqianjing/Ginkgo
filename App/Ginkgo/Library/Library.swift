@@ -43,6 +43,35 @@ enum Library {
         return book
     }
 
+    /// What a book's annotations add up to, for the "clear all" confirmation.
+    struct AnnotationCount: Equatable {
+        var highlights = 0, notes = 0, inkPages = 0
+        var isEmpty: Bool { highlights + notes + inkPages == 0 }
+
+        init(_ records: [AnnotationRecord]) {
+            for r in records {
+                if r.kind == .ink { if r.inkData != nil { inkPages += 1 } }
+                else if r.hasNote { notes += 1 }
+                else { highlights += 1 }
+            }
+        }
+
+        /// e.g. "12 条高亮和划线、3 条 AI 批注、2 页笔迹".
+        var summary: String {
+            var parts: [String] = []
+            if highlights > 0 { parts.append("\(highlights) 条高亮和划线") }
+            if notes > 0 { parts.append("\(notes) 条 AI 批注") }
+            if inkPages > 0 { parts.append("\(inkPages) 页笔迹") }
+            return parts.joined(separator: "、")
+        }
+    }
+
+    /// Back to the book as imported: every annotation goes. The PDF file itself was never changed.
+    static func clearAnnotations(of book: Book, in context: ModelContext) {
+        for record in book.annotations ?? [] { context.delete(record) }
+        try? context.save()
+    }
+
     static func delete(_ book: Book, from context: ModelContext) {
         try? FileManager.default.removeItem(at: book.fileURL)
         context.delete(book)

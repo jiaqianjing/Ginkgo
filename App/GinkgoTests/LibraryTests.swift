@@ -92,4 +92,31 @@ import UIKit
         }.value
         #expect(resolved.count == 4)
     }
+
+    @Test func clearingCountsAndRemovesEveryAnnotation() throws {
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        func record(_ text: String) throws -> AnnotationRecord {
+            let sel = try #require(doc.findString(text, withOptions: []).first)
+            let r = AnnotationRecord(kind: .highlight, anchor: try #require(ReaderModel.anchor(for: sel, in: doc)))
+            r.book = book
+            context.insert(r)
+            return r
+        }
+        _ = try record("living fossil")
+        _ = try record("hibakujumoku").taskRaw = "explain"
+        let ink = AnnotationRecord(kind: .ink, anchor: .pdf(PDFAnchor(pageIndex: 0, rects: [], quote: "")))
+        ink.inkData = Data([1]); ink.book = book
+        context.insert(ink)
+        try context.save()
+
+        let count = Library.AnnotationCount(book.annotations ?? [])
+        #expect(count.highlights == 1 && count.notes == 1 && count.inkPages == 1)
+        #expect(count.summary == "1 条高亮和划线、1 条 AI 批注、1 页笔迹")
+
+        Library.clearAnnotations(of: book, in: context)
+        #expect(Library.AnnotationCount(book.annotations ?? []).isEmpty)
+        #expect(FileManager.default.fileExists(atPath: book.fileURL.path))
+        Library.delete(book, from: context)
+    }
 }

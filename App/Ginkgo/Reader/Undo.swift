@@ -90,6 +90,46 @@ extension ReaderModel {
         }
     }
 
+    /// Every annotation in the book, ink included, as it is now.
+    var allRecords: [AnnotationRecord] { book.annotations ?? [] }
+
+    /// Back to the book as imported, as one undoable step: undo brings every mark, note (with its answer) and
+    /// page of ink back.
+    func clearAll() {
+        let snapshots = allRecords.map(AnnotationSnapshot.init)
+        guard !snapshots.isEmpty else { return }
+        for record in allRecords {
+            tasks[record.id]?.cancel()
+            if record.kind == .ink, case .pdf(let a)? = record.anchor { pageInk.clearCanvas(page: a.pageIndex) }
+            context.delete(record)
+        }
+        try? context.save()
+        focused = nil
+        peeked.removeAll()
+        collapsed.removeAll()
+        expanded = nil
+        clearSelection()
+        registerUndo("清除全部批注") { $0.restoreAll(snapshots) }
+        reload()
+    }
+
+    private func restoreAll(_ snapshots: [AnnotationSnapshot]) {
+        for snapshot in snapshots where annotation(snapshot.id) == nil {
+            let record = AnnotationRecord(kind: .highlight, anchor: .pdf(PDFAnchor(pageIndex: 0, rects: [], quote: "")))
+            record.id = snapshot.id
+            snapshot.apply(to: record)
+            record.book = book
+            context.insert(record)
+            if record.kind == .ink, case .pdf(let a)? = record.anchor, let data = record.inkData,
+               let drawing = try? PKDrawing(data: data) {
+                pageInk.showOnCanvas(drawing, page: a.pageIndex)
+            }
+        }
+        try? context.save()
+        registerUndo("清除全部批注") { $0.clearAll() }
+        reload()
+    }
+
     func undo() { undoManager?.undo(); refreshUndoState() }
     func redo() { undoManager?.redo(); refreshUndoState() }
 

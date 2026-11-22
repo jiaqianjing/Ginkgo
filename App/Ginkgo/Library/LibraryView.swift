@@ -11,6 +11,7 @@ struct LibraryView: View {
     @State private var importError: String?
     @State private var dropTargeted = false
     @State private var showSettings = false
+    @State private var clearing: Book?
 
     private var shelf: [Book] { books.sorted { $0.recency > $1.recency } }
 
@@ -47,6 +48,14 @@ struct LibraryView: View {
             Text(importError ?? "")
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .alert("恢复到导入时的样子？", isPresented: Binding(get: { clearing != nil }, set: { if !$0 { clearing = nil } })) {
+            Button("清除全部批注", role: .destructive) {
+                if let book = clearing { withAnimation { Library.clearAnnotations(of: book, in: context) } }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将删除《\(clearing?.title ?? "")》的\(Library.AnnotationCount(clearing?.annotations ?? []).summary)。PDF 原文件不受影响。这里清除后不能撤销；想留后路，可以先打开书，在批注列表里清除。")
+        }
         .task {
             DebugLaunch.seedIfRequested(context: context, open: { path = [$0] })
             #if DEBUG
@@ -65,6 +74,9 @@ struct LibraryView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
+                        if !Library.AnnotationCount(book.annotations ?? []).isEmpty {
+                            Button("清除全部批注…", systemImage: "arrow.counterclockwise") { clearing = book }
+                        }
                         Button("删除", systemImage: "trash", role: .destructive) {
                             withAnimation { Library.delete(book, from: context) }
                         }

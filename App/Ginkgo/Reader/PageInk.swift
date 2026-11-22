@@ -235,6 +235,20 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         return a.dataRepresentation() == b.dataRepresentation()
     }
 
+    /// Empties a page's canvas without touching storage (the caller deletes the record).
+    func clearCanvas(page index: Int) { showOnCanvas(PKDrawing(), page: index) }
+
+    /// Shows a drawing on a page's canvas, if it is on screen, without saving it.
+    func showOnCanvas(_ drawing: PKDrawing, page index: Int) {
+        guard let canvas = canvases[index] else { return }
+        pending[index]?.cancel()
+        applyingChange = true
+        canvas.drawing = drawing
+        applyingChange = false
+        processed[index] = drawing.strokes.count
+        settled[index] = drawing
+    }
+
     /// Sets a page's ink from undo or redo, whether or not its canvas is on screen.
     func setDrawing(_ drawing: PKDrawing, page index: Int) {
         if let canvas = canvases[index] {

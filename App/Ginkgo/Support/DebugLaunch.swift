@@ -66,6 +66,11 @@ enum DebugLaunch {
             try? await Task.sleep(for: .seconds(0.6))
             model.pageInk.drawDemoStrokes(page: 0)
         }
+        // `-demoClear YES` clears every annotation once the demo has settled.
+        if d.bool(forKey: "demoClear") {
+            try? await Task.sleep(for: .seconds(2))
+            model.clearAll()
+        }
         // `-demoUndo N` undoes N steps after the demo has settled; `-demoRedo N` then redoes N.
         let undos = d.integer(forKey: "demoUndo"), redos = d.integer(forKey: "demoRedo")
         if undos > 0 || redos > 0 {
