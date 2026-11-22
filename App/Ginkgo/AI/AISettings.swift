@@ -30,14 +30,16 @@ final class AISettings {
         defaults.string(forKey: "ai.model.\(p.rawValue)") ?? ""
     }
 
+    /// Picking the recommended model stores nothing, so the choice follows future recommendations.
     func setModel(_ model: String, for p: AIProviderKind) {
-        defaults.set(model.trimmingCharacters(in: .whitespaces), forKey: "ai.model.\(p.rawValue)")
+        let model = model.trimmingCharacters(in: .whitespaces)
+        defaults.set(model == p.recommendedModel ? "" : model, forKey: "ai.model.\(p.rawValue)")
         keyRevision += 1
     }
 
     func effectiveModel(for p: AIProviderKind) -> String {
         let m = model(for: p)
-        return m.isEmpty ? p.defaultModel : m
+        return m.isEmpty ? p.recommendedModel : m
     }
 
     func key(for p: AIProviderKind) -> String? {

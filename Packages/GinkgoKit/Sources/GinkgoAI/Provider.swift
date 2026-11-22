@@ -14,15 +14,6 @@ public enum AIProviderKind: String, CaseIterable, Codable, Sendable, Identifiabl
         }
     }
 
-    /// A good default for short margin answers; the user can type any model id in settings.
-    public var defaultModel: String {
-        switch self {
-        case .openAI: "gpt-5.5"
-        case .anthropic: "claude-opus-5-5"
-        case .gemini: "gemini-3.5-flash"
-        }
-    }
-
     /// Where the user creates a key.
     public var keyPage: URL {
         switch self {
@@ -33,7 +24,7 @@ public enum AIProviderKind: String, CaseIterable, Codable, Sendable, Identifiabl
     }
 
     public func client(apiKey: String, model: String, session: URLSession = .shared) -> AIClient {
-        let model = model.trimmingCharacters(in: .whitespaces).isEmpty ? defaultModel : model
+        let model = model.trimmingCharacters(in: .whitespaces).isEmpty ? recommendedModel : model
         switch self {
         case .openAI: return OpenAIClient(apiKey: apiKey, model: model, session: session)
         case .anthropic: return AnthropicClient(apiKey: apiKey, model: model, session: session)

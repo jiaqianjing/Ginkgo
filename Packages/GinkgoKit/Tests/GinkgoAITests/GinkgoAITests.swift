@@ -122,3 +122,65 @@ struct LiveProviderTests {
         #expect(text.hasSuffix("…"))
     }
 }
+
+@Suite struct ModelCatalogTests {
+    @Test func everyProviderRecommendsItsFastTierFirst() {
+        for kind in AIProviderKind.allCases {
+            #expect(kind.curatedModels.first?.tier == .fast)
+            #expect(kind.recommendedModel == kind.curatedModels[0].id)
+            #expect(Set(kind.curatedModels.map(\.id)).count == kind.curatedModels.count)
+        }
+    }
+
+    @Test func openAIListingDropsNonChatSnapshotsAndCurated() {
+        let listed = [
+            ModelInfo(id: "gpt-6-luna", created: Date(timeIntervalSince1970: 300)),
+            ModelInfo(id: "gpt-5.4-mini", created: Date(timeIntervalSince1970: 200)),
+            ModelInfo(id: "gpt-5.4-mini-2026-03-01", created: Date(timeIntervalSince1970: 199)),
+            ModelInfo(id: "gpt-5.5", created: Date(timeIntervalSince1970: 250)),
+            ModelInfo(id: "text-embedding-3-large"), ModelInfo(id: "whisper-1"), ModelInfo(id: "gpt-realtime"),
+            ModelInfo(id: "gpt-6-codex"), ModelInfo(id: "tts-1-hd"),
+            ModelInfo(id: "gpt-4.1", created: Date(timeIntervalSince1970: 100), deprecated: true),
+        ]
+        #expect(ModelCatalog.moreModels(listed, kind: .openAI) == ["gpt-5.5", "gpt-5.4-mini"])
+    }
+
+    @Test func anthropicKeepsTheNewestOfDatedOnlySnapshots() {
+        let listed = [
+            ModelInfo(id: "claude-sonnet-4-5-20250929"), ModelInfo(id: "claude-sonnet-4-5-20250514"),
+            ModelInfo(id: "claude-haiku-5-5"), ModelInfo(id: "claude-opus-4-1-20250805", deprecated: true),
+        ]
+        #expect(ModelCatalog.moreModels(listed, kind: .anthropic) == ["claude-sonnet-4-5-20250929"])
+    }
+
+    @Test func geminiUsesGenerationMethodsAndTheDeprecationList() {
+        let chat = ["generateContent", "countTokens"]
+        let listed = [
+            ModelInfo(id: "gemini-3.5-flash", generationMethods: chat),
+            ModelInfo(id: "gemini-3.5-flash-001", generationMethods: chat),
+            ModelInfo(id: "gemini-2.5-flash", generationMethods: chat),
+            ModelInfo(id: "gemini-2.0-flash-001", generationMethods: chat),
+            ModelInfo(id: "gemini-3.5-flash-live", generationMethods: chat),
+            ModelInfo(id: "gemini-embedding-001", generationMethods: ["embedContent"]),
+            ModelInfo(id: "gemini-3.5-flash-lite", generationMethods: chat),
+        ]
+        #expect(ModelCatalog.moreModels(listed, kind: .gemini) == ["gemini-3.5-flash"])
+    }
+
+    @Test func parsesEachProvidersListing() {
+        let openAI = #"{"data":[{"id":"gpt-5.5","created":1700000000,"shutdown_date":null},{"id":"old","shutdown_date":"2026-01-01"}]}"#
+        let o = AIProviderKind.parseModels(openAI, kind: .openAI)
+        #expect(o.map(\.id) == ["gpt-5.5", "old"] && o[0].created != nil && o[1].deprecated)
+        let anthropic = #"{"data":[{"id":"claude-haiku-5-5","created_at":"2026-08-01T00:00:00Z"},{"id":"x","created_at":"1970-01-01T00:00:00Z","lifecycle":"deprecated"}]}"#
+        let a = AIProviderKind.parseModels(anthropic, kind: .anthropic)
+        #expect(a[0].created != nil && a[1].created == nil && a[1].deprecated)
+        let gemini = #"{"models":[{"name":"models/gemini-3.5-flash","supportedGenerationMethods":["generateContent"]}]}"#
+        #expect(AIProviderKind.parseModels(gemini, kind: .gemini).first?.id == "gemini-3.5-flash")
+    }
+
+    @Test func latencySummaryReadsInSeconds() {
+        let l = AnswerLatency(firstWord: .milliseconds(620), total: .milliseconds(1440))
+        #expect(l.summary == "首字 0.6 秒 · 完成 1.4 秒")
+        #expect(AnswerLatency.seconds(.seconds(12.4)) == "12 秒")
+    }
+}

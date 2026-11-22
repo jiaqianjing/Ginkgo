@@ -6,11 +6,14 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var settings = AISettings.shared
     @State private var keyDraft = ""
-    @State private var modelDraft = ""
+    @State private var listed: [AIProviderKind: [String]] = [:]
+    @State private var listError: String?
+    @State private var customModel = ""
+    @State private var askingCustom = false
     @State private var testState: TestState = .idle
     @AppStorage("gesture.twoFingerUndo") private var twoFingerUndo = true
 
-    enum TestState: Equatable { case idle, running, ok(String), failed(String) }
+    enum TestState: Equatable { case idle, running, ok(String, latency: String), failed(String) }
 
     var body: some View {
         NavigationStack {
@@ -24,10 +27,7 @@ struct SettingsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .onSubmit(saveKey)
-                    TextField("模型（默认 \(settings.provider.defaultModel)）", text: $modelDraft)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .onSubmit { settings.setModel(modelDraft, for: settings.provider) }
+                    modelMenu
                 } header: {
                     Text("AI 服务")
                 } footer: {
@@ -47,14 +47,16 @@ struct SettingsView: View {
                             switch testState {
                             case .idle: EmptyView()
                             case .running: ProgressView()
-                            case .ok: Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
+                            case .ok(_, let latency):
+                                Text(latency).font(Theme.calloutFont).monospacedDigit().foregroundStyle(Theme.secondaryInk)
+                                Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.success)
                             case .failed: Image(systemName: "xmark.octagon.fill").foregroundStyle(Theme.error)
                             }
                         }
                     }
                     .disabled(testState == .running)
                     switch testState {
-                    case .ok(let text): Text(text).font(Theme.calloutFont).foregroundStyle(Theme.secondaryInk)
+                    case .ok(let text, _): Text(text).font(Theme.calloutFont).foregroundStyle(Theme.secondaryInk)
                     case .failed(let text): Text(text).font(Theme.calloutFont).foregroundStyle(Theme.error)
                     default: EmptyView()
                     }
@@ -85,19 +87,100 @@ struct SettingsView: View {
             }
             .onAppear(perform: loadDrafts)
             .onChange(of: settings.provider) { _, _ in loadDrafts(); testState = .idle }
+            .task(id: listingKey) { await loadModels() }
+            .alert("自定义模型", isPresented: $askingCustom) {
+                TextField("模型名称", text: $customModel)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                Button("取消", role: .cancel) {}
+                Button("使用") { if !customModel.trimmingCharacters(in: .whitespaces).isEmpty { pick(customModel) } }
+            } message: {
+                Text("填写 \(settings.provider.displayName) 的模型 ID。")
+            }
+        }
+    }
+
+    // MARK: Model menu
+
+    private var current: String { settings.effectiveModel(for: settings.provider) }
+
+    private var modelMenu: some View {
+        let kind = settings.provider
+        let more = listed[kind] ?? []
+        return Menu {
+            Section("推荐") {
+                ForEach(kind.curatedModels, id: \.id) { choice in
+                    Button { pick(choice.id) } label: {
+                        if choice.id == current { Label(choice.id, systemImage: "checkmark") } else { Text(choice.id) }
+                        Text(choice.note)
+                    }
+                }
+            }
+            Section {
+                if !more.isEmpty {
+                    Menu("更多模型（\(more.count)）") {
+                        ForEach(more, id: \.self) { id in
+                            Button { pick(id) } label: {
+                                if id == current { Label(id, systemImage: "checkmark") } else { Text(id) }
+                            }
+                        }
+                    }
+                } else if let listError {
+                    Text(listError)
+                }
+                Button("自定义模型名…") { customModel = isCurated(current) ? "" : current; askingCustom = true }
+            }
+        } label: {
+            HStack {
+                Text("模型").foregroundStyle(Theme.ink)
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(current).foregroundStyle(Theme.secondaryInk)
+                    if current == kind.recommendedModel {
+                        Text("推荐 · 速度快、费用低").font(.caption).foregroundStyle(Theme.accent)
+                    }
+                }
+                Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundStyle(Theme.secondaryInk)
+            }
+        }
+    }
+
+    private func isCurated(_ id: String) -> Bool { settings.provider.curatedModels.contains { $0.id == id } }
+
+    private func pick(_ id: String) {
+        settings.setModel(id, for: settings.provider)
+        testState = .idle
+    }
+
+    /// Re-fetch when the provider or its key changes.
+    private var listingKey: String { "\(settings.provider.rawValue)|\(settings.keyRevision)" }
+
+    private func loadModels() async {
+        let kind = settings.provider
+        listError = nil
+        guard let key = AISettings.shared.key(for: kind), listed[kind] == nil else { return }
+        do {
+            let models = try await kind.listModels(apiKey: key)
+            listed[kind] = ModelCatalog.moreModels(models, kind: kind)
+        } catch is CancellationError {
+        } catch {
+            listError = "无法获取模型列表"
         }
     }
 
     private func loadDrafts() {
         keyDraft = AISettings.shared.key(for: settings.provider) ?? ""
-        modelDraft = settings.model(for: settings.provider)
     }
 
-    private func saveKey() { settings.setKey(keyDraft, for: settings.provider) }
+    private func saveKey() {
+        let kind = settings.provider
+        guard keyDraft != (AISettings.shared.key(for: kind) ?? "") else { return }
+        settings.setKey(keyDraft, for: kind)
+        listed[kind] = nil
+    }
 
     private func commit() {
         saveKey()
-        settings.setModel(modelDraft, for: settings.provider)
     }
 
     private func test() async {
@@ -107,9 +190,8 @@ struct SettingsView: View {
             let (client, label) = try settings.client()
             let context = PassageContext(bookTitle: "", passage: "The leaves of the ginkgo turn gold all at once.",
                                          readerLanguage: settings.readerLanguage)
-            var text = ""
-            for try await chunk in client.stream(PromptBuilder.request(for: .translate, context: context)) { text += chunk }
-            testState = .ok("\(label)：\(text)")
+            let (text, latency) = try await AnswerLatency.measure(client, PromptBuilder.request(for: .translate, context: context))
+            testState = .ok("\(label)：\(text)", latency: latency.summary)
         } catch {
             testState = .failed(error.localizedDescription)
         }

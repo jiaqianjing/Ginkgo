@@ -57,6 +57,7 @@ Ginkgo/
 - **`AIProvider` 协议**：`func stream(_ request: AIRequest) -> AsyncThrowingStream<String, Error>`，回答按流式返回，卡片里一个字一个字出来。
 - **三家实现**：OpenAI（Responses API）、Anthropic（Messages API）、Gemini（generateContent）。只用 `URLSession`，不引入第三方 SDK。
 - **`PromptBuilder`**：四种任务（翻译、解释、提问、手写提问）。上下文包括选中的原文、前后段落、书名，以及目标语言（默认跟随系统语言）。要求回答简短，像页边批注，不像聊天。
+- **`ModelCatalog`**：每家三个精选模型（快速 / 均衡 / 最强），快速档是推荐和默认值，用户没选过就跟着推荐走。填了 key 后拉取服务商的模型列表，去掉非对话模型、过期模型和带日期的快照，放进「更多模型」。`AnswerLatency` 给测试连接计时（首字、完成）。
 - **`KeyStore`**：API key 存在钥匙串里，只在本机，不进 iCloud。
 - **缓存**：以（任务、原文哈希、模型）为键，同一段翻译不重复花钱。
 
