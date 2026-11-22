@@ -90,7 +90,7 @@ private struct ReaderContent: View {
                 VStack(spacing: Theme.rhythm) {
                     ToolTray(model: model)
                     if model.showToolHint {
-                        ToolHint { withAnimation(.smooth) { model.dismissToolHint() } }
+                        ToolHint(model: model) { withAnimation(.smooth) { model.dismissToolHint() } }
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }

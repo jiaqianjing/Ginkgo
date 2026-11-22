@@ -51,9 +51,9 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
 
     private func configure(_ canvas: PKCanvasView) {
         #if targetEnvironment(simulator)
-        canvas.drawingPolicy = .anyInput  // mouse in the simulator; Pencil only on a device
+        canvas.drawingPolicy = .anyInput  // mouse in the simulator
         #else
-        canvas.drawingPolicy = .pencilOnly
+        canvas.drawingPolicy = model?.fingersDraw == true ? .anyInput : .pencilOnly
         #endif
         canvas.isScrollEnabled = false
         let tool = model?.tool
@@ -78,13 +78,18 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
     private func installEraserTracking(on canvas: PKCanvasView, active: Bool) {
         let existing = canvas.gestureRecognizers?.first { $0.name == "ginkgo.eraser" }
         if !active { existing?.isEnabled = false; return }
+        #if !targetEnvironment(simulator)
+        let types: [UITouch.TouchType] = model?.fingersDraw == true ? [.pencil, .direct] : [.pencil]
+        existing?.allowedTouchTypes = types.map { NSNumber(value: $0.rawValue) }
+        #endif
         if let existing { existing.isEnabled = true; return }
         let pan = UIPanGestureRecognizer(target: self, action: #selector(erasing(_:)))
         pan.name = "ginkgo.eraser"
         pan.delegate = self
         pan.cancelsTouchesInView = false
         #if !targetEnvironment(simulator)
-        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.pencil.rawValue)]
+        let kinds: [UITouch.TouchType] = model?.fingersDraw == true ? [.pencil, .direct] : [.pencil]
+        pan.allowedTouchTypes = kinds.map { NSNumber(value: $0.rawValue) }
         #endif
         canvas.addGestureRecognizer(pan)
     }
@@ -358,7 +363,7 @@ struct MarginInkCanvas: UIViewRepresentable {
         #if targetEnvironment(simulator)
         canvas.drawingPolicy = .anyInput
         #else
-        canvas.drawingPolicy = .pencilOnly
+        canvas.drawingPolicy = model.fingersDraw ? .anyInput : .pencilOnly
         #endif
         canvas.tool = PKInkingTool(.pen, color: UIColor(red: 0.18, green: 0.2, blue: 0.26, alpha: 1), width: 2.4)
         canvas.delegate = context.coordinator
@@ -366,6 +371,9 @@ struct MarginInkCanvas: UIViewRepresentable {
     }
 
     func updateUIView(_ canvas: PKCanvasView, context: Context) {
+        #if !targetEnvironment(simulator)
+        canvas.drawingPolicy = model.fingersDraw ? .anyInput : .pencilOnly
+        #endif
         context.coordinator.model = model
         context.coordinator.pageWidth = layout.pageWidth
     }

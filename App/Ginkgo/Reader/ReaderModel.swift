@@ -82,7 +82,7 @@ final class ReaderModel {
             ToolSettings.tool = tool
             if let oldValue, oldValue != tool { previousTool = oldValue }
             pageInk.toolChanged()
-            (pdfView as? ReaderPDFView)?.reservePencil(tool != nil)
+            applyTouchRules()
             if tool == nil { pageInk.saveAll() }
             paletteAt = nil
         }
@@ -99,6 +99,17 @@ final class ReaderModel {
     var markPreview: MarkPreview?
     /// Whether the current tool marks text live (so the page canvas stays out of the way).
     var marksLive: Bool { tool?.snapsToText(freehand: highlighterFreehand) ?? false }
+    /// Fingers use the tool too (no Pencil at hand). Follows the system's "Only Draw with Apple Pencil" until
+    /// the reader flips it in the tray.
+    var fingersDraw = ToolSettings.fingersDraw {
+        didSet { ToolSettings.fingersDraw = fingersDraw; applyTouchRules() }
+    }
+
+    func applyTouchRules() {
+        (pdfView as? ReaderPDFView)?.reserveTouches(tool: tool != nil, fingersDraw: fingersDraw)
+        pageInk.toolChanged()
+    }
+
     var showToolHint = !ToolSettings.seenHint
     /// Mirrors the undo manager for the tray's buttons.
     var canUndo = false

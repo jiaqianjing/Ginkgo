@@ -60,7 +60,7 @@ struct PDFKitView: UIViewRepresentable {
         view.addGestureRecognizer(tap)
         DispatchQueue.main.async {
             c.attachScrollObserver(view)
-            view.reservePencil(model.tool != nil)
+            view.reserveTouches(tool: model.tool != nil, fingersDraw: model.fingersDraw)
         }
         return view
     }
@@ -170,7 +170,7 @@ struct PDFKitView: UIViewRepresentable {
             #if targetEnvironment(simulator)
             return true
             #else
-            return touch.type == .pencil
+            return touch.type == .pencil || (model.fingersDraw && touch.type == .direct)
             #endif
         }
 
@@ -275,26 +275,32 @@ final class ReaderPDFView: PDFView {
     }
     private var savedTouchTypes: [ObjectIdentifier: [NSNumber]] = [:]
 
-    /// While a tool is chosen, PDFKit's own gestures (scrolling, text selection) only take fingers, so every Pencil
-    /// stroke reaches the page's ink canvas. The simulator's mouse is both, so it is left alone there.
-    func reservePencil(_ reserve: Bool) {
+    /// While a tool is chosen, PDFKit's own gestures (scrolling, text selection) leave the drawing input to the tool:
+    /// with Pencil-only drawing they take only fingers; when fingers draw too, one finger belongs to the tool, so
+    /// scrolling needs two fingers and text selection waits until the tool is put down. Pinch-zoom always works.
+    /// The simulator's mouse is both finger and Pencil, so it is left alone there.
+    func reserveTouches(tool: Bool, fingersDraw: Bool) {
         #if !targetEnvironment(simulator)
         let fingers = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        let none = [NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+        let scroll = firstSubview(of: UIScrollView.self)
         func visit(_ view: UIView) {
             if view is PKCanvasView { return }
             for g in view.gestureRecognizers ?? [] where !(g is UIHoverGestureRecognizer) && !(g.delegate is PDFKitView.Coordinator) {
                 let key = ObjectIdentifier(g)
-                if reserve {
-                    if savedTouchTypes[key] == nil { savedTouchTypes[key] = g.allowedTouchTypes }
+                if savedTouchTypes[key] == nil { savedTouchTypes[key] = g.allowedTouchTypes }
+                guard tool else { g.allowedTouchTypes = savedTouchTypes[key] ?? g.allowedTouchTypes; continue }
+                if g === scroll?.panGestureRecognizer || g === scroll?.pinchGestureRecognizer {
                     g.allowedTouchTypes = fingers
-                } else if let saved = savedTouchTypes[key] {
-                    g.allowedTouchTypes = saved
+                } else {
+                    g.allowedTouchTypes = fingersDraw ? none : fingers
                 }
             }
             view.subviews.forEach(visit)
         }
         visit(self)
-        if !reserve { savedTouchTypes.removeAll() }
+        scroll?.panGestureRecognizer.minimumNumberOfTouches = tool && fingersDraw ? 2 : 1
+        if !tool { savedTouchTypes.removeAll() }
         #endif
     }
 
