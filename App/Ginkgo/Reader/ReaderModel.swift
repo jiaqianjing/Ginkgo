@@ -41,8 +41,8 @@ final class ReaderModel {
     let book: Book
     let document: PDFDocument
     @ObservationIgnored weak var pdfView: PDFView?
-    @ObservationIgnored private let context: ModelContext
-    @ObservationIgnored private var tasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored let context: ModelContext
+    @ObservationIgnored var tasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored let pageInk = PageInk()
 
     private(set) var annotations: [AnnotationRecord] = []
@@ -85,6 +85,9 @@ final class ReaderModel {
     var inkColor = ToolSettings.inkColor { didSet { ToolSettings.inkColor = inkColor; pageInk.toolChanged() } }
     var underlineStyle = ToolSettings.underlineStyle { didSet { ToolSettings.underlineStyle = underlineStyle } }
     var showToolHint = !ToolSettings.seenHint
+    /// Mirrors the undo manager for the tray's buttons.
+    var canUndo = false
+    var canRedo = false
     /// Where a Pencil squeeze opened the tool palette, in reader coordinates.
     var paletteAt: CGPoint?
     /// Pencil hover position, for the tool preview ring.
@@ -203,6 +206,7 @@ final class ReaderModel {
         if style != .highlight { record.styleRaw = style.rawValue }
         record.book = book
         context.insert(record)
+        registerRemoval(of: record.id, name: style == .highlight ? "高亮" : "划线")
         // Only end the selection this highlight came from (a margin note may land while another is showing).
         if selection === self.selection { clearSelection() }
         reload()
@@ -210,13 +214,20 @@ final class ReaderModel {
     }
 
     func recolor(_ id: UUID, _ color: HighlightColor) {
-        annotation(id)?.colorRaw = color.rawValue
+        guard let record = annotation(id), record.color != color else { return }
+        let old = record.color
+        record.colorRaw = color.rawValue
+        registerUndo("换颜色") { $0.recolor(id, old) }
         reload()
     }
 
     func delete(_ id: UUID) {
         tasks[id]?.cancel()
-        if let record = annotation(id) { context.delete(record) }
+        if let record = annotation(id) {
+            let snapshot = AnnotationSnapshot(record)
+            registerUndo("删除批注") { $0.restore(snapshot) }
+            context.delete(record)
+        }
         focused = nil
         peeked.remove(id)
         if expanded == id { expanded = nil }
@@ -235,6 +246,8 @@ final class ReaderModel {
     /// Runs (or re-runs) an AI task on an existing annotation; the answer streams into its card.
     func run(_ task: AITask, on id: UUID) {
         guard let record = annotation(id), let anchor = record.anchor else { return }
+        let before = AnnotationSnapshot(record)
+        registerUndo("AI 批注") { $0.revert(to: before) }
         record.taskRaw = task.tag
         switch task {
         case .ask(let q), .handwritten(let q): record.question = q

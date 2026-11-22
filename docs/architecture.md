@@ -73,6 +73,7 @@ Ginkgo/
   - **页边层**（2026-11-22 起，#2）：书页默认占满宽度；每条批注在页面右边缘一个贴签（`NoteTab`），点开是浮起的卡片（`FoldedNotesLayer`，长回答截断并给出「展开全文」；下方放不下时放到原文上方）。侧边栏（`SidenoteColumn` 加连线）只在宽窗口出现，条件是回顾模式或有一条展开的批注（`ReaderModel.expanded`）；窄窗口里展开的批注用右侧浮起的面板（`ExpandedNotePanel`）。都在页面上方的 SwiftUI 层里，用 PDFKit 做坐标换算。
   - 宽窗口的判断依据是可用宽度，不是设备方向，这样分屏和台前调度下也成立（`ReaderLayout.isWide`）。
   - 阅读模式下批注几乎隐形；回顾模式下全部展开。
+- **撤销与重做**（2026-11-22 起，#4）：所有改动都登记到窗口的 `UndoManager`（`Reader/Undo.swift`），所以系统的三指手势和 ⌘Z 都能用；`ReaderPDFView` 做第一响应者，让它们找得到这个撤销管理器。删除时存一份 `AnnotationSnapshot`，撤销时按原来的 id 和 AI 回答恢复。页面画布（`PageCanvas`）不往窗口登记 PencilKit 自己的撤销，而是由 `PageInk` 在每次解释笔画之后登记一步，所以"一笔荧光笔变成高亮"撤销时是一步。
 - **持久化**：
   - SwiftData：`Book`、`AnnotationRecord`、`Reply`。
   - 现在就按 CloudKit 的约束设计：所有属性可空或有默认值，不用唯一约束，关系都可选。等开通 iCloud 时直接打开同步，不用迁移数据。

@@ -38,6 +38,15 @@ struct PDFKitView: UIViewRepresentable {
         center.addObserver(c, selector: #selector(Coordinator.geometryChanged), name: .PDFViewVisiblePagesChanged, object: view)
         center.addObserver(c, selector: #selector(Coordinator.selectionChanged), name: .PDFViewSelectionChanged, object: view)
 
+        let twoFinger = UITapGestureRecognizer(target: c, action: #selector(Coordinator.twoFingerTapped(_:)))
+        twoFinger.numberOfTouchesRequired = 2
+        twoFinger.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+        twoFinger.delegate = c
+        view.addGestureRecognizer(twoFinger)
+        for name in [Notification.Name.NSUndoManagerDidUndoChange, .NSUndoManagerDidRedoChange, .NSUndoManagerDidCloseUndoGroup] {
+            center.addObserver(c, selector: #selector(Coordinator.undoChanged), name: name, object: nil)
+        }
+
         let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tapped(_:)))
         tap.cancelsTouchesInView = false
         tap.delegate = c
@@ -93,6 +102,15 @@ struct PDFKitView: UIViewRepresentable {
                   let index = view.document?.index(for: page) else { return }
             onPageChange(index)
             model.recompute()
+        }
+
+        @objc func undoChanged() { model.refreshUndoState() }
+
+        /// Two-finger tap undoes while a Pencil tool is in hand (a common note-app gesture; can be turned off).
+        @objc func twoFingerTapped(_ gesture: UITapGestureRecognizer) {
+            let enabled = UserDefaults.standard.object(forKey: "gesture.twoFingerUndo") as? Bool ?? true
+            guard enabled, model.tool != nil, model.canUndo else { return }
+            withAnimation(.smooth(duration: 0.2)) { model.undo() }
         }
 
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
@@ -161,6 +179,14 @@ final class ReaderPDFView: PDFView {
     var onLayout: (() -> Void)?
     private var lastWidth: CGFloat = 0
     let pencilInteraction = UIPencilInteraction()
+
+    // First responder, so ⌘Z and the system three-finger undo gestures reach the window's undo manager.
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() } }
+    }
     private var savedTouchTypes: [ObjectIdentifier: [NSNumber]] = [:]
 
     /// While a tool is chosen, PDFKit's own gestures (scrolling, text selection) only take fingers, so every Pencil

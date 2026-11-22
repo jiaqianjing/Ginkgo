@@ -45,6 +45,12 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 - **悬停**（支持悬停的 iPad）：笔尖靠近屏幕时，显示当前工具颜色的小圆圈。
 - 工具、颜色、划线样式会记住。模拟器里没有 Pencil，选了工具后鼠标就是 Pencil，放下工具才能选字。
 
+**撤销与重做**
+- 工具栏最左边是撤销、重做两个按钮。
+- 系统手势：三指左滑撤销，三指右滑重做，三指轻点弹出编辑栏；接键盘时用 ⌘Z 和 ⇧⌘Z。
+- 拿着 Pencil 工具时，双指轻点页面也能撤销（可以在设置的「手势」里关掉）。
+- 能撤销的操作：高亮、划线、AI 批注的新建和删除，换颜色，笔迹（包括橡皮擦掉的）。撤销删除时，AI 回答原样回来，不重新请求。
+
 **批注列表与导出**（工具栏的列表按钮）
 - 按页码列出全部批注，可以只看 AI 批注或只看高亮；点一条就跳过去。
 - 右上角导出：Markdown 笔记，或带标准批注的 PDF（高亮、笔迹，AI 回答放在文字批注里），可以在别的阅读器里打开。
@@ -66,6 +72,7 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 - `-demoAnnotate YES`：自动加一条高亮和三条 AI 批注。AI 需要 key，可以用 `SIMCTL_CHILD_OPENAI_API_KEY` 传给模拟器。
 - `-demoMode review`：以回顾模式打开。
 - `-demoInk YES`：用划线、圈选、荧光笔和钢笔各画一笔（页边一个问号），检查识别结果。
+- `-demoUndo N`、`-demoRedo N`：演示结束后撤销 N 步，再重做 N 步。
 - `-demoTool <highlighter|underline|lasso|pen|eraser>`：选中工具；`-demoPalette YES`：打开捏合后的工具面板。
 - `-demoNotes YES`：打开批注列表。
 - `-demoPeek YES`：打开所有批注的浮起卡片；`-demoExpand YES`：展开第一条批注。

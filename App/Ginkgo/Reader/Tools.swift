@@ -128,6 +128,10 @@ struct ToolTray: View {
 
     var body: some View {
         let content = Group {
+            if !vertical {
+                history
+                Divider().frame(height: Theme.Tray.dividerLength)
+            }
             tools
             if let tool = model.tool, tool != .lasso, tool != .eraser {
                 Divider().frame(width: vertical ? Theme.Tray.dividerLength : nil, height: vertical ? nil : Theme.Tray.dividerLength)
@@ -144,6 +148,28 @@ struct ToolTray: View {
         .buttonStyle(.plain)
         .padding(Theme.Space.compact)
         .glassEffect(.regular.tint(Theme.glassTint).interactive(), in: .rect(cornerRadius: Theme.panelRadius))
+    }
+
+    private var history: some View {
+        Group {
+            Button { withAnimation(.smooth(duration: 0.2)) { model.undo() } } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(Theme.Tray.iconFont)
+                    .frame(width: Theme.Tray.button, height: Theme.Tray.button)
+                    .contentShape(Rectangle())
+            }
+            .disabled(!model.canUndo)
+            .accessibilityLabel("撤销")
+            Button { withAnimation(.smooth(duration: 0.2)) { model.redo() } } label: {
+                Image(systemName: "arrow.uturn.forward")
+                    .font(Theme.Tray.iconFont)
+                    .frame(width: Theme.Tray.button, height: Theme.Tray.button)
+                    .contentShape(Rectangle())
+            }
+            .disabled(!model.canRedo)
+            .accessibilityLabel("重做")
+        }
+        .foregroundStyle(Theme.ink)
     }
 
     private var tools: some View {

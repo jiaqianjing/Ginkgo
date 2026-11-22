@@ -63,6 +63,15 @@ enum DebugLaunch {
             try? await Task.sleep(for: .seconds(0.6))
             model.pageInk.drawDemoStrokes(page: 0)
         }
+        // `-demoUndo N` undoes N steps after the demo has settled; `-demoRedo N` then redoes N.
+        let undos = d.integer(forKey: "demoUndo"), redos = d.integer(forKey: "demoRedo")
+        if undos > 0 || redos > 0 {
+            try? await Task.sleep(for: .seconds(2.5))
+            for _ in 0..<undos {
+                model.undo(); try? await Task.sleep(for: .seconds(0.3))
+            }
+            for _ in 0..<redos { model.redo(); try? await Task.sleep(for: .seconds(0.3)) }
+        }
         if let text = d.string(forKey: "demoSelect"), let s = find(text) {
             model.pdfView?.currentSelection = s
             model.selectionChanged(s)

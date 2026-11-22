@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var keyDraft = ""
     @State private var modelDraft = ""
     @State private var testState: TestState = .idle
+    @AppStorage("gesture.twoFingerUndo") private var twoFingerUndo = true
 
     enum TestState: Equatable { case idle, running, ok(String), failed(String) }
 
@@ -63,6 +64,14 @@ struct SettingsView: View {
                     Picker("回答语言", selection: $settings.readerLanguage) {
                         ForEach(AISettings.languages, id: \.self) { Text($0).tag($0) }
                     }
+                }
+
+                Section {
+                    Toggle("双指轻点撤销", isOn: $twoFingerUndo)
+                } header: {
+                    Text("手势")
+                } footer: {
+                    Text("拿起 Pencil 工具时，双指轻点页面撤销上一步。系统手势始终可用：三指左滑撤销，三指右滑重做，三指轻点弹出编辑栏；接键盘时用 ⌘Z 和 ⇧⌘Z。")
                 }
             }
             .scrollContentBackground(.hidden)

@@ -15,6 +15,8 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
     private var processed: [Int: Int] = [:]
     private var pending: [Int: DispatchWorkItem] = [:]
     private var applyingChange = false
+    /// Each page's drawing as of the last interpretation: the "before" for undo.
+    private var settled: [Int: PKDrawing] = [:]
 
     /// Re-reads the model's tool and colours onto every canvas.
     func toolChanged() { canvases.values.forEach(configure) }
@@ -23,7 +25,7 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
 
     func pdfView(_ view: PDFView, overlayViewFor page: PDFPage) -> UIView? {
         guard let model, let index = view.document?.index(for: page) else { return nil }
-        let canvas = canvases[index] ?? PKCanvasView()
+        let canvas = canvases[index] ?? PageCanvas()
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.delegate = self
@@ -33,6 +35,7 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
             canvas.drawing = model.inkDrawing(page: index) ?? PKDrawing()
             applyingChange = false
             processed[index] = canvas.drawing.strokes.count
+            settled[index] = canvas.drawing
         }
         canvases[index] = canvas
         configure(canvas)
@@ -43,6 +46,7 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         guard let canvas = overlayView as? PKCanvasView else { return }
         model?.saveInk(canvas.drawing, page: canvas.tag)
         canvases[canvas.tag] = nil
+        settled[canvas.tag] = nil
     }
 
     private func configure(_ canvas: PKCanvasView) {
@@ -118,7 +122,17 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         let strokes = canvas.drawing.strokes
         let start = min(processed[index] ?? 0, strokes.count)
         let fresh = Array(strokes[start...])
-        guard !fresh.isEmpty else { return }
+        let before = settled[index] ?? PKDrawing()
+        guard !fresh.isEmpty else {
+            // No new strokes: the eraser removed some.
+            processed[index] = strokes.count
+            if !Self.same(canvas.drawing, before) {
+                settled[index] = canvas.drawing
+                model.saveInk(canvas.drawing, page: index)
+                model.registerInkChange(page: index, from: before, to: canvas.drawing)
+            }
+            return
+        }
 
         let space = PageSpace(page: page, canvas: canvas.bounds.size, box: model.pdfView?.displayBox ?? .cropBox)
         let lines = space.textLines()
@@ -183,7 +197,30 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         canvas.drawing = PKDrawing(strokes: keep)
         applyingChange = false
         processed[index] = keep.count
+        settled[index] = canvas.drawing
         model.saveInk(canvas.drawing, page: index)
+        if !Self.same(canvas.drawing, before) {
+            model.registerInkChange(page: index, from: before, to: canvas.drawing)
+        }
+    }
+
+    /// Two drawings with the same strokes (two empty drawings can encode differently).
+    static func same(_ a: PKDrawing, _ b: PKDrawing) -> Bool {
+        if a.strokes.isEmpty || b.strokes.isEmpty { return a.strokes.isEmpty == b.strokes.isEmpty }
+        return a.dataRepresentation() == b.dataRepresentation()
+    }
+
+    /// Sets a page's ink from undo or redo, whether or not its canvas is on screen.
+    func setDrawing(_ drawing: PKDrawing, page index: Int) {
+        if let canvas = canvases[index] {
+            pending[index]?.cancel()
+            applyingChange = true
+            canvas.drawing = drawing
+            applyingChange = false
+            processed[index] = drawing.strokes.count
+            settled[index] = drawing
+        }
+        model?.saveInk(drawing, page: index)
     }
 }
 
@@ -224,6 +261,17 @@ extension PageInk {
     }
 }
 #endif
+
+/// A page canvas that keeps PencilKit's own undo out of the window's undo manager: `PageInk` registers one undo
+/// per settled change instead, so a stroke that became a highlight undoes as one step.
+final class PageCanvas: PKCanvasView {
+    private let privateUndo: UndoManager = {
+        let manager = UndoManager()
+        manager.disableUndoRegistration()
+        return manager
+    }()
+    override var undoManager: UndoManager? { privateUndo }
+}
 
 /// Converts between a page overlay canvas (points, y down) and PDF page space (y up).
 struct PageSpace {
