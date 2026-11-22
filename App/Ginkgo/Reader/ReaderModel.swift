@@ -62,6 +62,8 @@ final class ReaderModel {
     /// Notes opened in reading mode, or folded away in review mode.
     var peeked: Set<UUID> = []
     var collapsed: Set<UUID> = []
+    /// A note too long for its floating card, shown in full in the side column (or side panel in narrow windows).
+    var expanded: UUID?
     var asking: AskTarget?
     var showSettings = false
     var showNotes = false
@@ -111,7 +113,26 @@ final class ReaderModel {
         case .review: if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
         case .reading: if peeked.contains(id) { peeked.remove(id) } else { peeked.insert(id) }
         }
+        if !isOpen(id), expanded == id { expanded = nil }
         focused = isOpen(id) ? id : nil
+    }
+
+    /// Opens a long note in the side column.
+    func expand(_ id: UUID) {
+        peeked.insert(id)
+        collapsed.remove(id)
+        expanded = id
+        focused = id
+    }
+
+    /// Closes floating cards and the side column opened while reading. Returns false if nothing was open.
+    @discardableResult
+    func foldAll() -> Bool {
+        guard expanded != nil || (mode == .reading && !peeked.isEmpty) else { return false }
+        expanded = nil
+        if mode == .reading { peeked.removeAll() }
+        focused = nil
+        return true
     }
 
     @discardableResult
@@ -136,6 +157,7 @@ final class ReaderModel {
         if let record = annotation(id) { context.delete(record) }
         focused = nil
         peeked.remove(id)
+        if expanded == id { expanded = nil }
         try? context.save()
         // The relationship array updates on save; drop the record locally right away.
         annotations.removeAll { $0.id == id }

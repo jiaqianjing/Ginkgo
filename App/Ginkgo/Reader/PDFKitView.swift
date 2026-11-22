@@ -104,6 +104,10 @@ struct PDFKitView: UIViewRepresentable {
                 model.clearSelection()
                 return
             }
+            if model.expanded != nil || (model.mode == .reading && !model.peeked.isEmpty) {
+                withAnimation(.smooth(duration: 0.25)) { model.foldAll() }
+                return
+            }
             if model.focused != nil {
                 withAnimation(.smooth(duration: 0.2)) { model.focused = nil }
                 return

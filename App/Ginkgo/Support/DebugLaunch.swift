@@ -48,6 +48,9 @@ enum DebugLaunch {
             }
             model.focused = nil
         }
+        // `-demoPeek YES` opens every note's floating card; `-demoExpand YES` opens the first note in full.
+        if d.bool(forKey: "demoPeek") { model.peeked = Set(model.notes.map(\.id)) }
+        if d.bool(forKey: "demoExpand"), let first = model.notes.first { model.expand(first.id) }
         if d.bool(forKey: "demoNotes") {
             try? await Task.sleep(for: .seconds(4))
             model.showNotes = true

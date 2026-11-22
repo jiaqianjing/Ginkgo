@@ -40,7 +40,8 @@ private struct ReaderContent: View {
 
     var body: some View {
         GeometryReader { geo in
-            let layout = ReaderLayout(size: geo.size)
+            let layout = ReaderLayout(size: geo.size,
+                                      sidebar: model.mode == .review || model.expanded != nil)
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     PDFKitView(model: model, onPageChange: pageChanged)
@@ -75,6 +76,10 @@ private struct ReaderContent: View {
                     } else {
                         FoldedNotesLayer(model: model, layout: layout)
                     }
+                    if !layout.isWide, let id = model.expanded, let record = model.annotation(id) {
+                        ExpandedNotePanel(model: model, record: record, layout: layout)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
                 .clipped()
@@ -107,6 +112,7 @@ private struct ReaderContent: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .animation(.smooth(duration: 0.3), value: model.mode)
             .animation(.smooth(duration: 0.3), value: layout.hasMarginColumn)
+            .animation(.smooth(duration: 0.3), value: model.expanded)
             .onChange(of: layout.hasMarginColumn) { _, _ in DispatchQueue.main.async { model.recompute() } }
         }
         .ignoresSafeArea(edges: [.horizontal, .bottom])

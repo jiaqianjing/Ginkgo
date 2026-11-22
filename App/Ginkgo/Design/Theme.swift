@@ -132,6 +132,23 @@ enum Theme {
         static let marginRadius: CGFloat = 3
         static let marginY: CGFloat = 1
         static let floatingY: CGFloat = 6
+        /// Answer lines shown in a floating card before it offers to open in full.
+        static let compactLines = 7
+    }
+    /// Note tabs on the page edge.
+    enum Tab {
+        static let width: CGFloat = 26
+        static let height: CGFloat = 24
+        static let radius: CGFloat = 6
+        static let tipRadius: CGFloat = 2
+        static let edgeInset: CGFloat = 6
+        static let edgeWidth: CGFloat = 2
+        static let edgeOpacity = 0.7
+        static let idleOpacity = 0.55
+        static let activeOpacity = 0.9
+        static let font = Font.system(size: 11, weight: .semibold)
+        static let shadow = Color.black.opacity(0.12)
+        static let shadowRadius: CGFloat = 1.5
     }
     static let panelShadowColor = Color.black.opacity(0.18)
     static let dropLineWidth: CGFloat = 3

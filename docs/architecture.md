@@ -69,8 +69,8 @@ Ginkgo/
   - `PDFView` 包装成 SwiftUI 视图，记住每本书读到哪一页。
   - 点一下屏幕，切换工具栏的显示和隐藏。
   - **页内叠加层**：用 `PDFPageOverlayViewProvider` 给每页挂一个 PencilKit 画布，笔迹滚动和缩放时自动跟随页面。画布尺寸就是页面的点数（与缩放无关），所以笔迹直接按页面坐标存储。书写模式打开 `isInMarkupMode`，关掉时手指恢复选字。高亮记号画在页面上方的 SwiftUI 层里（和页边卡片共用一套坐标换算）。
-  - **页边层**：横屏 A 的页边卡片和连线、竖屏 B 的色条和展开卡片，放在页面上方的 SwiftUI 层里，用 PDFKit 做坐标换算（原型验证过的做法）。
-  - 横竖屏判断依据是可用宽度，不是设备方向，这样分屏和台前调度下也成立。
+  - **页边层**（2026-11-22 起，#2）：书页默认占满宽度；每条批注在页面右边缘一个贴签（`NoteTab`），点开是浮起的卡片（`FoldedNotesLayer`，长回答截断并给出「展开全文」；下方放不下时放到原文上方）。侧边栏（`SidenoteColumn` 加连线）只在宽窗口出现，条件是回顾模式或有一条展开的批注（`ReaderModel.expanded`）；窄窗口里展开的批注用右侧浮起的面板（`ExpandedNotePanel`）。都在页面上方的 SwiftUI 层里，用 PDFKit 做坐标换算。
+  - 宽窗口的判断依据是可用宽度，不是设备方向，这样分屏和台前调度下也成立（`ReaderLayout.isWide`）。
   - 阅读模式下批注几乎隐形；回顾模式下全部展开。
 - **持久化**：
   - SwiftData：`Book`、`AnnotationRecord`、`Reply`。

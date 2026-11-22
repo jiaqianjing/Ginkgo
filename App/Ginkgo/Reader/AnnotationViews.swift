@@ -47,6 +47,12 @@ struct NoteCard: View {
     let record: AnnotationRecord
     var width: CGFloat
     var floating = false
+    /// Floating on the page: long answers are cut short and offer to open in the side column.
+    var compact = false
+    @State private var fullHeight: CGFloat = 0
+    @State private var shownHeight: CGFloat = 0
+
+    private var truncated: Bool { compact && fullHeight > shownHeight + 1 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.rhythm) {
@@ -121,14 +127,38 @@ struct NoteCard: View {
             Text("正在思考…").font(Theme.footnoteFont).foregroundStyle(Theme.secondaryInk)
         default:
             if let text = record.replyText {
-                Text(text)
-                    .font(Theme.noteFont)
-                    .lineSpacing(Theme.lineSpacing)
-                    .foregroundStyle(Theme.ink)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Theme.rhythm) {
+                    answerText(text)
+                        .lineLimit(compact ? Theme.Card.compactLines : nil)
+                        .textSelection(.enabled)
+                        .onGeometryChange(for: CGFloat.self, of: \.size.height) { shownHeight = $0 }
+                        .background(alignment: .top) {
+                            if compact {
+                                answerText(text).hidden()
+                                    .onGeometryChange(for: CGFloat.self, of: \.size.height) { fullHeight = $0 }
+                            }
+                        }
+                    if truncated {
+                        Button { withAnimation(.smooth(duration: 0.3)) { model.expand(record.id) } } label: {
+                            Label("展开全文", systemImage: "sidebar.right")
+                                .font(Theme.actionFont)
+                                .foregroundStyle(record.color.ink)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
+    }
+}
+
+private extension NoteCard {
+    func answerText(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.noteFont)
+            .lineSpacing(Theme.lineSpacing)
+            .foregroundStyle(Theme.ink)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -166,8 +196,8 @@ struct SidenoteColumn: View {
                             .offset(x: layout.pageWidth + layout.columnInset, y: top)
                             .transition(.opacity.combined(with: .move(edge: .trailing)))
                     } else {
-                        MarginTick(color: record.color.ink) { withAnimation(.smooth(duration: 0.25)) { model.toggle(record.id) } }
-                            .offset(x: layout.pageWidth + 10, y: g.first.minY - 2)
+                        NoteTab(record: record) { withAnimation(.smooth(duration: 0.25)) { model.toggle(record.id) } }
+                            .offset(x: layout.pageWidth + layout.columnInset, y: g.first.minY - 4)
                     }
                 }
             }
@@ -177,7 +207,7 @@ struct SidenoteColumn: View {
     private func positions() -> [UUID: CGFloat] {
         let items = model.notes.compactMap { r -> MarginLayout.Item<UUID>? in
             guard let g = model.geometry[r.id] else { return nil }
-            let h = model.isOpen(r.id) ? (model.cardHeights[r.id] ?? 90) : 22
+            let h = model.isOpen(r.id) ? (model.cardHeights[r.id] ?? 90) : Theme.Tab.height
             return .init(id: r.id, anchorY: g.first.minY - 8, height: h)
         }
         return MarginLayout.stack(items, gap: 12)
@@ -212,18 +242,80 @@ struct ConnectorLayer: View {
     }
 }
 
-struct MarginTick: View {
-    var color: Color
+/// A small tab on the page edge for each note, like a sticky flag in a book: its colour and what kind of note it is.
+struct NoteTab: View {
+    let record: AnnotationRecord
+    var active = false
     var action: () -> Void
+
+    private var symbol: String {
+        if record.inkData != nil { return "pencil.and.scribble" }
+        switch record.taskRaw {
+        case "translate": return "character.bubble"
+        case "explain": return "text.magnifyingglass"
+        default: return "questionmark"
+        }
+    }
 
     var body: some View {
         Button(action: action) {
-            Capsule().fill(color.opacity(Theme.Connector.tickOpacity)).frame(width: Theme.tickWidth, height: Theme.tickHeight)
-                .padding(.horizontal, Theme.rhythm).padding(.vertical, Theme.Space.small)
+            Image(systemName: symbol)
+                .font(Theme.Tab.font)
+                .foregroundStyle(record.color.ink)
+                .frame(width: Theme.Tab.width, height: Theme.Tab.height)
+                .background {
+                    UnevenRoundedRectangle(topLeadingRadius: Theme.Tab.radius, bottomLeadingRadius: Theme.Tab.radius,
+                                           bottomTrailingRadius: Theme.Tab.tipRadius, topTrailingRadius: Theme.Tab.tipRadius)
+                        .fill(record.color.fill.opacity(active ? Theme.Tab.activeOpacity : Theme.Tab.idleOpacity))
+                        .shadow(color: Theme.Tab.shadow, radius: Theme.Tab.shadowRadius, y: 1)
+                }
+                .overlay(alignment: .trailing) {
+                    Rectangle().fill(record.color.ink.opacity(Theme.Tab.edgeOpacity)).frame(width: Theme.Tab.edgeWidth)
+                }
+                .clipShape(UnevenRoundedRectangle(topLeadingRadius: Theme.Tab.radius, bottomLeadingRadius: Theme.Tab.radius,
+                                                  bottomTrailingRadius: Theme.Tab.tipRadius, topTrailingRadius: Theme.Tab.tipRadius))
+                .padding(Theme.Space.small)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("打开批注")
+        .padding(-Theme.Space.small)
+        .accessibilityLabel(active ? "收起\(record.taskLabel)批注" : "打开\(record.taskLabel)批注")
+    }
+}
+
+/// Narrow windows: a long note opens in a panel at the right edge, over the page, scrolling if it has to.
+struct ExpandedNotePanel: View {
+    let model: ReaderModel
+    let record: AnnotationRecord
+    let layout: ReaderLayout
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(record.anchor?.quote ?? "")
+                    .font(Theme.quoteFont)
+                    .foregroundStyle(Theme.secondaryInk)
+                    .lineLimit(2)
+                Spacer(minLength: Theme.rhythm)
+                Button { withAnimation(.smooth(duration: 0.3)) { model.expanded = nil } } label: {
+                    Image(systemName: "xmark").font(Theme.panelIconFont)
+                        .frame(width: Theme.panelControlSize, height: Theme.panelControlSize)
+                }
+                .accessibilityLabel("收起")
+            }
+            .padding(.horizontal, Theme.cardInset)
+            .padding(.vertical, Theme.rhythm)
+            ScrollView {
+                NoteCard(model: model, record: record, width: layout.panelWidth - Theme.cardInset * 2)
+                    .padding([.horizontal, .bottom], Theme.cardInset)
+            }
+        }
+        .frame(width: layout.panelWidth)
+        .frame(maxHeight: layout.size.height - Theme.Space.large * 2)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(Theme.paper, in: RoundedRectangle(cornerRadius: Theme.panelRadius))
+        .shadow(color: Theme.panelShadowColor, radius: Theme.panelShadow, x: Theme.panelShadowX)
+        .frame(width: layout.size.width - Theme.rhythm, height: layout.size.height, alignment: .trailing)
     }
 }
 
@@ -240,10 +332,12 @@ struct FoldedNotesLayer: View {
         ZStack(alignment: .topLeading) {
             ForEach(model.notes, id: \.id) { record in
                 if let g = model.geometry[record.id], let page = pageFrame(for: g) {
-                    MarginTick(color: record.color.ink) { withAnimation(.smooth(duration: 0.25)) { model.toggle(record.id) } }
-                        .offset(x: page.maxX - 26, y: g.first.minY - 3)
-                    if model.isOpen(record.id), let top = tops[record.id] {
-                        NoteCard(model: model, record: record, width: layout.floatingCardWidth, floating: true)
+                    NoteTab(record: record, active: model.isOpen(record.id)) {
+                        withAnimation(.smooth(duration: 0.25)) { model.toggle(record.id) }
+                    }
+                    .offset(x: page.maxX - Theme.Tab.width - Theme.Tab.edgeInset, y: g.first.minY - 4)
+                    if model.isOpen(record.id), model.expanded != record.id, let top = tops[record.id] {
+                        NoteCard(model: model, record: record, width: layout.floatingCardWidth, floating: true, compact: true)
                             .onGeometryChange(for: CGFloat.self, of: \.size.height) { model.cardHeights[record.id] = $0 }
                             .offset(x: cardX(page), y: top)
                             .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
@@ -263,10 +357,29 @@ struct FoldedNotesLayer: View {
 
     private func positions() -> [UUID: CGFloat] {
         let items = model.notes.compactMap { r -> MarginLayout.Item<UUID>? in
-            guard model.isOpen(r.id), let g = model.geometry[r.id] else { return nil }
+            guard model.isOpen(r.id), model.expanded != r.id, let g = model.geometry[r.id] else { return nil }
             return .init(id: r.id, anchorY: g.union.maxY + 8, height: model.cardHeights[r.id] ?? 100)
         }
-        return MarginLayout.stack(items, gap: 10)
+        var tops = MarginLayout.stack(items, gap: 10)
+        let bottom = layout.size.height - Theme.Space.large * 2
+        let ceiling = Theme.Space.large * 3
+        // A card that would run off the bottom of the screen goes above its passage instead...
+        for item in items {
+            guard let top = tops[item.id], top + item.height > bottom, let g = model.geometry[item.id] else { continue }
+            tops[item.id] = max(ceiling, g.first.minY - item.height - 8)
+        }
+        // ...then the cards are restacked so none overlap, and pushed up from the bottom edge if they still overflow.
+        let moved = items.compactMap { item in tops[item.id].map { MarginLayout.Item(id: item.id, anchorY: $0, height: item.height) } }
+            .sorted { $0.anchorY < $1.anchorY }
+        tops = MarginLayout.stack(moved, gap: 10)
+        var limit = bottom
+        for item in moved.reversed() {
+            guard let top = tops[item.id] else { continue }
+            let fitted = max(ceiling, min(top, limit - item.height))
+            tops[item.id] = fitted
+            limit = fitted - 10
+        }
+        return tops
     }
 }
 
