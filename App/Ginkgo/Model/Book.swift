@@ -15,6 +15,8 @@ final class Book {
     var lastPageIndex: Int = 0
     var pageCount: Int = 0
     @Attribute(.externalStorage) var coverData: Data?
+    /// The book's scratch sheet (a PencilKit drawing), kept apart from the pages.
+    @Attribute(.externalStorage) var scratchData: Data?
 
     @Relationship(deleteRule: .cascade, inverse: \AnnotationRecord.book)
     var annotations: [AnnotationRecord]? = []

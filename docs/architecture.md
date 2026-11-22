@@ -75,6 +75,7 @@ Ginkgo/
   - 宽窗口的判断依据是可用宽度，不是设备方向，这样分屏和台前调度下也成立（`ReaderLayout.isWide`）。
   - 阅读模式下批注几乎隐形；回顾模式下全部展开。
 - **撤销与重做**（2026-11-22 起，#4）：所有改动都登记到窗口的 `UndoManager`（`Reader/Undo.swift`），所以系统的三指手势和 ⌘Z 都能用；`ReaderPDFView` 做第一响应者，让它们找得到这个撤销管理器。删除时存一份 `AnnotationSnapshot`，撤销时按原来的 id 和 AI 回答恢复。页面画布（`PageCanvas`）不往窗口登记 PencilKit 自己的撤销，而是由 `PageInk` 在每次解释笔画之后登记一步，所以"一笔荧光笔变成高亮"撤销时是一步。
+- **草稿纸**（2026-11-22 起，#9）：`Reader/Scratch.swift`。每本书一张，存在 `Book.scratchData`（PKDrawing），写一笔存一笔。工具栏和 Pencil 捏合扇形里都有入口。宽窗口里放在书页右侧（`ReaderLayout.scratchBeside`，这时不显示侧边栏），窄窗口里浮在书页上、从工具栏下方开始；左边缘可拖宽。画布用工具栏当前的笔和颜色，没选工具时就是钢笔，手指开关同样适用；纸面向下无限延伸。草稿纸有自己的 `UndoManager`（`ReaderModel.scratchUndo`），打开时工具栏、⌘Z 和三指手势撤销的都是草稿，书里的改动照旧登记到书的撤销管理器；草稿纸收起时它的撤销历史随画布一起清掉。打开时关掉 iOS 26 的内容区返回手势，否则从左往右的一笔会退出阅读器。
 - **持久化**：
   - SwiftData：`Book`、`AnnotationRecord`、`Reply`。
   - 现在就按 CloudKit 的约束设计：所有属性可空或有默认值，不用唯一约束，关系都可选。等开通 iCloud 时直接打开同步，不用迁移数据。

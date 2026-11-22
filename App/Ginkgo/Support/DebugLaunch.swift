@@ -66,6 +66,8 @@ enum DebugLaunch {
             try? await Task.sleep(for: .seconds(0.6))
             model.pageInk.drawDemoStrokes(page: 0)
         }
+        // `-demoScratch YES` opens the scratch sheet.
+        if d.bool(forKey: "demoScratch") { model.showScratch = true }
         // `-demoClear YES` clears every annotation once the demo has settled.
         if d.bool(forKey: "demoClear") {
             try? await Task.sleep(for: .seconds(2))

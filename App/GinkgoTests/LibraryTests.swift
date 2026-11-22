@@ -120,3 +120,24 @@ import UIKit
         Library.delete(book, from: context)
     }
 }
+
+@Suite struct ScratchLayoutTests {
+    @Test func wideWindowsPutTheSheetBesideThePage() {
+        let layout = ReaderLayout(size: CGSize(width: 1210, height: 834), sidebar: true, scratch: 360)
+        #expect(layout.scratchBeside)
+        #expect(!layout.hasMarginColumn)
+        #expect(layout.pageWidth == CGFloat(850))
+    }
+
+    @Test func narrowWindowsFloatTheSheetOverThePage() {
+        let layout = ReaderLayout(size: CGSize(width: 834, height: 1210), scratch: 900)
+        #expect(!layout.scratchBeside)
+        #expect(layout.pageWidth == CGFloat(834))
+        #expect(layout.scratchWidth == CGFloat(770))
+    }
+
+    @Test func aClosedSheetTakesNoRoom() {
+        let layout = ReaderLayout(size: CGSize(width: 1210, height: 834), sidebar: true)
+        #expect(!layout.scratchBeside && layout.hasMarginColumn)
+    }
+}

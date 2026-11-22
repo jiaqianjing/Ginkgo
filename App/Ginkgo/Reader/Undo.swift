@@ -41,10 +41,13 @@ struct AnnotationSnapshot {
 /// Undo and redo for everything the reader changes: marks, notes, colours and page ink. All of it goes through the
 /// window's undo manager, so the system gestures (three-finger swipe, the three-finger tap menu) and ⌘Z work.
 extension ReaderModel {
-    var undoManager: UndoManager? { pdfView?.undoManager }
+    /// The book's undo manager. Changes to the book always register here, even while the scratch sheet is open.
+    var bookUndoManager: UndoManager? { pdfView?.undoManager }
+    /// What undo and redo act on now: the scratch sheet while it is open, otherwise the book.
+    var undoManager: UndoManager? { showScratch ? scratchUndo : bookUndoManager }
 
     func registerUndo(_ name: String, _ action: @escaping (ReaderModel) -> Void) {
-        guard let undoManager else { return }
+        guard let undoManager = bookUndoManager else { return }
         undoManager.registerUndo(withTarget: self) { model in
             MainActor.assumeIsolated { action(model) }
         }

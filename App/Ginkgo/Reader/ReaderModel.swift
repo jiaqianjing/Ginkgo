@@ -75,6 +75,15 @@ final class ReaderModel {
     var asking: AskTarget?
     var showSettings = false
     var showNotes = false
+    /// The scratch sheet beside the book. While it is open, undo and redo act on it.
+    var showScratch = false {
+        didSet { scratchToggled() }
+    }
+    var scratchWidth: CGFloat = CGFloat(UserDefaults.standard.object(forKey: "scratch.width") as? Double ?? 360) {
+        didSet { UserDefaults.standard.set(Double(scratchWidth), forKey: "scratch.width") }
+    }
+    @ObservationIgnored let scratchUndo = UndoManager()
+    @ObservationIgnored weak var scratchCanvas: ScratchCanvasView?
     /// The Pencil's tool. Nil: the Pencil selects text like a finger. Fingers never draw (except the mouse in the
     /// simulator, which draws whenever a tool is chosen).
     var tool: PenTool? = ToolSettings.tool {

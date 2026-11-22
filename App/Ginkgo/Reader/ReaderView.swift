@@ -41,7 +41,8 @@ private struct ReaderContent: View {
     var body: some View {
         GeometryReader { geo in
             let layout = ReaderLayout(size: geo.size,
-                                      sidebar: model.mode == .review || model.expanded != nil)
+                                      sidebar: model.mode == .review || model.expanded != nil,
+                                      scratch: model.showScratch ? model.scratchWidth : 0)
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
                     PDFKitView(model: model, onPageChange: pageChanged)
@@ -87,6 +88,21 @@ private struct ReaderContent: View {
                 SelectionMenu(model: model, layout: layout)
                 AnnotationMenu(model: model, layout: layout)
 
+
+                if model.showScratch {
+                    // Beside the page it runs full height; floating, it starts below the tray so the tray keeps its room.
+                    let top = layout.scratchBeside ? 0 : Theme.Tray.topInset + Theme.Tray.button + Theme.Space.compact * 2 + Theme.Space.small
+                    let shape = UnevenRoundedRectangle(topLeadingRadius: layout.scratchBeside ? 0 : Theme.panelRadius)
+                    ScratchSheet(model: model, maxWidth: layout.isWide ? geo.size.width * 0.5 : geo.size.width - 64)
+                        .frame(width: layout.scratchWidth, height: geo.size.height - top)
+                        .clipShape(shape)
+                        .overlay { shape.stroke(Theme.rule, lineWidth: Theme.hairline) }
+                        .shadow(color: layout.scratchBeside ? .clear : Theme.panelShadowColor,
+                                radius: Theme.panelShadow, x: Theme.panelShadowX)
+                        .offset(x: geo.size.width - layout.scratchWidth, y: top)
+                        .transition(.move(edge: .trailing))
+                }
+
                 VStack(spacing: Theme.rhythm) {
                     ToolTray(model: model)
                     if model.showToolHint {
@@ -98,6 +114,7 @@ private struct ReaderContent: View {
                 .frame(width: layout.pageWidth)
                 .opacity(model.chromeVisible ? 1 : 0)
                 .allowsHitTesting(model.chromeVisible)
+
 
                 if let point = model.paletteAt {
                     SqueezePalette(model: model, point: point, bounds: CGSize(width: layout.pageWidth, height: geo.size.height))
@@ -120,6 +137,7 @@ private struct ReaderContent: View {
             .animation(.smooth(duration: 0.3), value: model.mode)
             .animation(.smooth(duration: 0.3), value: layout.hasMarginColumn)
             .animation(.smooth(duration: 0.3), value: model.expanded)
+            .animation(.smooth(duration: 0.3), value: model.showScratch)
             .onChange(of: layout.hasMarginColumn) { _, _ in DispatchQueue.main.async { model.recompute() } }
         }
         .ignoresSafeArea(edges: [.horizontal, .bottom])
@@ -131,7 +149,7 @@ private struct ReaderContent: View {
         .sheet(isPresented: $model.showSettings) { SettingsView() }
 
         .onAppear { pageIndex = model.book.lastPageIndex }
-        .onDisappear { model.pageInk.saveAll() }
+        .onDisappear { model.pageInk.saveAll(); model.saveScratch() }
         .task { await DebugLaunch.annotateIfRequested(model) }
     }
 

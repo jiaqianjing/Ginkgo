@@ -152,7 +152,7 @@ struct ToolTray: View {
                 Divider().frame(height: Theme.Tray.dividerLength)
             }
             tools
-            if !vertical { fingerToggle }
+            if !vertical { fingerToggle; scratchToggle }
             if let tool = model.tool, tool != .lasso, tool != .eraser {
                 Divider().frame(width: vertical ? Theme.Tray.dividerLength : nil, height: vertical ? nil : Theme.Tray.dividerLength)
                 options(for: tool)
@@ -214,6 +214,24 @@ struct ToolTray: View {
             .accessibilityAddTraits(on ? .isSelected : [])
             .accessibilityHint(on ? "再点一次放下工具，Pencil 恢复选字" : "")
         }
+    }
+
+    /// Opens the scratch sheet beside the book.
+    private var scratchToggle: some View {
+        let on = model.showScratch
+        return Button { model.toggleScratch() } label: {
+            Image(systemName: "pencil.and.scribble")
+                .font(Theme.Tray.iconFont)
+                .foregroundStyle(on ? Theme.accent : Theme.secondaryInk)
+                .frame(width: Theme.Tray.button, height: Theme.Tray.button)
+                .background {
+                    if on { RoundedRectangle(cornerRadius: Theme.Tray.selectionRadius).fill(Theme.accent.opacity(Theme.Tray.selectionOpacity)) }
+                }
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("草稿")
+        .accessibilityValue(on ? "已打开" : "已收起")
+        .accessibilityHint("一张和书分开的纸，随手涂写")
     }
 
     /// Fingers draw too: for an iPad without a Pencil at hand. Then two fingers scroll.
@@ -406,10 +424,14 @@ struct SqueezePalette: View {
             Color.clear.contentShape(Rectangle())
                 .onTapGesture { close() }
             Circle().fill(Theme.accent.opacity(0.5)).frame(width: 6, height: 6).position(center)
+            // The tools, then the scratch sheet at the end of the inner arc.
+            let ring = PenTool.allCases.count + 1
             ForEach(Array(PenTool.allCases.enumerated()), id: \.element) { i, tool in
                 toolButton(tool)
-                    .position(shown ? position(i, of: PenTool.allCases.count, radius: Theme.Fan.inner, step: Theme.Fan.toolStep) : center)
+                    .position(shown ? position(i, of: ring, radius: Theme.Fan.inner, step: Theme.Fan.toolStep) : center)
             }
+            scratchButton
+                .position(shown ? position(ring - 1, of: ring, radius: Theme.Fan.inner, step: Theme.Fan.toolStep) : center)
             let opts = options
             ForEach(Array(opts.enumerated()), id: \.element) { i, item in
                 optionButton(item)
@@ -424,6 +446,22 @@ struct SqueezePalette: View {
 
     private func close() {
         withAnimation(.smooth(duration: 0.18)) { model.paletteAt = nil }
+    }
+
+    private var scratchButton: some View {
+        let on = model.showScratch
+        return Button { model.toggleScratch() } label: {
+            Image(systemName: "pencil.and.scribble")
+                .font(Theme.Tray.iconFont)
+                .foregroundStyle(on ? Color.white : Theme.secondaryInk)
+                .frame(width: Theme.Fan.toolSize, height: Theme.Fan.toolSize)
+                .background(Circle().fill(on ? Theme.accent : Theme.card))
+                .overlay(Circle().strokeBorder(Theme.rule, lineWidth: on ? 0 : Theme.hairline))
+                .shadow(color: Theme.panelShadowColor, radius: Theme.Fan.shadow, y: 2)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(on ? "收起草稿" : "草稿")
     }
 
     private func toolButton(_ tool: PenTool) -> some View {
