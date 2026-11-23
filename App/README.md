@@ -76,6 +76,7 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 - `-demoInk YES`：用划线、圈选、荧光笔和钢笔各画一笔（页边一个问号），检查识别结果。
 - `-demoClear YES`：演示结束后清除全部批注。
 - `-demoScratch YES`：打开草稿纸。
+- `-visualFixture study`（配合 `-inMemoryStore YES -demoPeek YES`）：摆出词卡、重点表达和一轮追问，不调用 AI。
 - `-demoUndo N`、`-demoRedo N`：演示结束后撤销 N 步，再重做 N 步。
 - `-demoTool <highlighter|underline|lasso|pen|eraser>`：选中工具；`-demoPalette YES`：打开捏合后的工具面板。
 - `-demoNotes YES`：打开批注列表。
