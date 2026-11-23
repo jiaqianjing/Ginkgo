@@ -50,6 +50,8 @@ enum Theme {
     static let menuFont = Font.subheadline.weight(.medium)
     static let quoteFont = Font.system(.callout, design: .serif)
     static let noteFont = Font.system(.subheadline, design: .serif)
+    /// The headword on a word card.
+    static let termFont = Font.system(.title3, design: .serif).weight(.semibold)
     static let titleFont = Font.system(.headline, design: .serif)
     static let labelFont = Font.system(.caption, design: .rounded).weight(.semibold)
     static let cardRadius: CGFloat = 8
@@ -127,6 +129,8 @@ enum Theme {
     }
     enum Card {
         static let dotSize: CGFloat = 7
+        /// Touch target around the colour dot, which opens the colour menu.
+        static let dotHit: CGFloat = 28
         static let ruleRadius: CGFloat = 1
         static let ruleOpacity = 0.65
         static let focusOpacity = 0.35

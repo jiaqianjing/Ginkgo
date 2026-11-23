@@ -33,11 +33,14 @@ struct MarkPreview {
 enum AskTarget: Identifiable {
     case selection(PDFSelection)
     case annotation(UUID)
+    /// A further question on a note that already has an answer.
+    case followUp(UUID)
 
     var id: String {
         switch self {
         case .selection(let s): "sel-\(s.string?.hashValue ?? 0)"
         case .annotation(let id): id.uuidString
+        case .followUp(let id): "more-\(id.uuidString)"
         }
     }
 }
@@ -45,12 +48,14 @@ enum AskTarget: Identifiable {
 /// State of one open book: its annotations, where they are on screen, and the AI requests in flight.
 @Observable
 final class ReaderModel {
-    private static let log = Logger(subsystem: "com.kenjia.ginkgo", category: "ai")
+    static let log = Logger(subsystem: "com.kenjia.ginkgo", category: "ai")
     let book: Book
     let document: PDFDocument
     @ObservationIgnored weak var pdfView: PDFView?
     @ObservationIgnored let context: ModelContext
     @ObservationIgnored var tasks: [UUID: Task<Void, Never>] = [:]
+    /// What each note is waiting for from the AI beyond its first answer (key expressions, analysis, a follow-up).
+    var busy: [UUID: NoteActivity] = [:]
     @ObservationIgnored let pageInk = PageInk()
 
     private(set) var annotations: [AnnotationRecord] = []
@@ -257,7 +262,7 @@ final class ReaderModel {
     }
 
     func delete(_ id: UUID) {
-        tasks[id]?.cancel()
+        cancelTask(id)
         if let record = annotation(id) {
             let snapshot = AnnotationSnapshot(record)
             registerUndo("删除批注") { $0.restore(snapshot) }
@@ -270,68 +275,6 @@ final class ReaderModel {
         // The relationship array updates on save; drop the record locally right away.
         annotations.removeAll { $0.id == id }
         geometry[id] = nil
-    }
-
-    /// Runs an AI task on the selection, creating a highlight to hang the note on.
-    func run(_ task: AITask, on selection: PDFSelection, color: HighlightColor = .yellow) {
-        guard let record = highlight(selection, color: color) else { return }
-        run(task, on: record.id)
-    }
-
-    /// Runs (or re-runs) an AI task on an existing annotation; the answer streams into its card.
-    func run(_ task: AITask, on id: UUID) {
-        guard let record = annotation(id), let anchor = record.anchor else { return }
-        let before = AnnotationSnapshot(record)
-        registerUndo("AI 批注") { $0.revert(to: before) }
-        record.taskRaw = task.tag
-        switch task {
-        case .ask(let q), .handwritten(let q): record.question = q
-        default: break
-        }
-        record.replyText = nil
-        record.replyError = nil
-        record.replyState = .pending
-        peeked.insert(id)
-        collapsed.remove(id)
-        focused = id
-
-        let settings = AISettings.shared
-        let request = PromptBuilder.request(for: task, context: PassageContext(
-            bookTitle: book.title, passage: anchor.quote, surrounding: surroundingText(of: anchor),
-            readerLanguage: settings.readerLanguage))
-
-        tasks[id]?.cancel()
-        tasks[id] = Task { [weak self] in
-            do {
-                let (client, label) = try settings.client()
-                record.replyModel = label
-                var text = ""
-                for try await chunk in client.stream(request) {
-                    text += chunk
-                    record.replyText = text
-                    record.replyState = .streaming
-                }
-                record.replyState = .done
-            } catch is CancellationError {
-                return
-            } catch {
-                record.replyError = error.localizedDescription
-                if let detail = (error as? AIError)?.detail { Self.log.error("AI request failed: \(detail, privacy: .public)") }
-                record.replyState = .failed
-            }
-            try? self?.context.save()
-        }
-    }
-
-    func retry(_ id: UUID) {
-        guard let record = annotation(id) else { return }
-        let task: AITask = switch record.taskRaw {
-        case "translate": .translate
-        case "explain": .explain
-        case "handwritten": .handwritten(record.question ?? "")
-        default: .ask(record.question ?? "")
-        }
-        run(task, on: id)
     }
 
     /// Scrolls to an annotation and opens its note.
@@ -455,7 +398,7 @@ final class ReaderModel {
     }
 
     /// About a paragraph of page text on either side of the passage, for the prompt.
-    private func surroundingText(of anchor: GinkgoCore.Anchor) -> String {
+    func surroundingText(of anchor: GinkgoCore.Anchor) -> String {
         guard case .pdf(let a) = anchor, let range = a.range, let page = document.page(at: a.pageIndex),
               let text = page.string as NSString? else { return "" }
         let start = max(0, range.location - 400)

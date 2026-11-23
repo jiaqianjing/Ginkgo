@@ -1,3 +1,4 @@
+import GinkgoAI
 import GinkgoCore
 import PencilKit
 import SwiftData
@@ -19,11 +20,15 @@ struct AnnotationSnapshot {
     let replyStateRaw: String?
     let replyError: String?
     let replyModel: String?
+    let threadData: Data?
+    let studyData: Data?
 
     init(_ r: AnnotationRecord) {
         id = r.id; kindRaw = r.kindRaw; colorRaw = r.colorRaw; styleRaw = r.styleRaw; anchorData = r.anchorData
         createdAt = r.createdAt; inkData = r.inkData; question = r.question; taskRaw = r.taskRaw
         replyText = r.replyText; replyError = r.replyError; replyModel = r.replyModel
+        threadData = Self.settled(r.thread).flatMap { $0.isEmpty ? nil : StudyJSON.encode($0) }
+        studyData = r.studyData
         // An answer still arriving when the snapshot was taken comes back as failed, with a retry, not stuck.
         let state = r.replyState
         replyStateRaw = (state == .pending || state == .streaming) && r.replyText?.isEmpty != false
@@ -34,7 +39,17 @@ struct AnnotationSnapshot {
         r.kindRaw = kindRaw; r.colorRaw = colorRaw; r.styleRaw = styleRaw; r.anchorData = anchorData
         r.createdAt = createdAt; r.inkData = inkData; r.question = question; r.taskRaw = taskRaw
         r.replyText = replyText; r.replyStateRaw = replyStateRaw; r.replyModel = replyModel
+        r.threadData = threadData; r.studyData = studyData
         r.replyError = replyStateRaw == ReplyState.failed.rawValue ? (replyError ?? "回答被撤销了，可以重试。") : replyError
+    }
+
+    /// A follow-up still waiting for its answer comes back as failed, like the main reply.
+    private static func settled(_ thread: [FollowUp]) -> [FollowUp]? {
+        thread.map { turn in
+            var turn = turn
+            if turn.answer.isEmpty, turn.error == nil { turn.error = "回答被撤销了，可以重试。" }
+            return turn
+        }
     }
 }
 
@@ -74,11 +89,11 @@ extension ReaderModel {
     }
 
     /// Puts an annotation's fields back (an AI note becomes the plain mark it was, or gets its old answer back).
-    func revert(to snapshot: AnnotationSnapshot) {
+    func revert(to snapshot: AnnotationSnapshot, name: String = "AI 批注") {
         guard let record = annotation(snapshot.id) else { return }
-        tasks[snapshot.id]?.cancel()
+        cancelTask(snapshot.id)
         let current = AnnotationSnapshot(record)
-        registerUndo("AI 批注") { $0.revert(to: current) }
+        registerUndo(name) { $0.revert(to: current, name: name) }
         snapshot.apply(to: record)
         if !record.hasNote { peeked.remove(record.id); if expanded == record.id { expanded = nil } }
         try? context.save()
@@ -102,7 +117,7 @@ extension ReaderModel {
         let snapshots = allRecords.map(AnnotationSnapshot.init)
         guard !snapshots.isEmpty else { return }
         for record in allRecords {
-            tasks[record.id]?.cancel()
+            cancelTask(record.id)
             if record.kind == .ink, case .pdf(let a)? = record.anchor { pageInk.clearCanvas(page: a.pageIndex) }
             context.delete(record)
         }

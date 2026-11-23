@@ -184,3 +184,61 @@ struct LiveProviderTests {
         #expect(AnswerLatency.seconds(.seconds(12.4)) == "12 秒")
     }
 }
+
+@Suite struct StudyTests {
+    @Test func wordsAndShortPhrasesAreLookedUp() {
+        #expect(PassageShape.isLookup("hedges"))
+        #expect(PassageShape.isLookup("living fossil"))
+        #expect(PassageShape.isLookup("give up on"))
+        #expect(PassageShape.isLookup("銀杏"))
+        #expect(!PassageShape.isLookup("It hedges against catastrophe by doing many things."))
+        #expect(!PassageShape.isLookup("one two three four five"))
+        #expect(!PassageShape.isLookup("Stop. Go"))
+    }
+
+    @Test func jsonIsFoundInsideFencesAndProse() throws {
+        let text = """
+        Here you go:
+        ```json
+        {"term": "hedge", "context_meaning": "分散风险", "senses": [{"pos": "v.", "meaning": "对冲"}]}
+        ```
+        """
+        let card = try StudyJSON.decode(WordCard.self, from: text)
+        #expect(card.term == "hedge")
+        #expect(card.contextMeaning == "分散风险")
+        #expect(card.summary.contains("这里的意思：分散风险"))
+        #expect(throws: AIError.badFormat) { try StudyJSON.decode(WordCard.self, from: "no json here") }
+    }
+
+    @Test func storedNotesRoundTrip() throws {
+        var note = StudyNote(keyItems: KeyItems(items: [KeyItem(text: "hedge against", kind: "collocation")],
+                                                analysisWorthy: true, analysisHint: "比喻"))
+        note.analysisError = "x"
+        let back = StudyJSON.load(StudyNote.self, from: StudyJSON.encode(note))
+        #expect(back == note)
+        #expect(back?.keyItems?.items.first?.kindLabel == "搭配")
+        let parsed = try StudyJSON.decode(KeyItems.self, from: #"{"items":[],"analysis_worthy":false,"analysis_hint":""}"#)
+        #expect(parsed.analysisWorthy == false)
+    }
+
+    @Test func followUpCarriesTheNoteAndEarlierRounds() {
+        let context = PassageContext(bookTitle: "B", passage: "It hedges.", readerLanguage: "简体中文")
+        let request = PromptBuilder.followUp(
+            context: context,
+            material: FollowUpMaterial(task: "翻译", answer: "它在对冲。", keyItems: [KeyItem(text: "hedge", meaning: "对冲")]),
+            history: [FollowUp(question: "为什么？", answer: "因为……"), FollowUp(question: "失败的", error: "x")],
+            question: "再举个例子", level: .intermediate)
+        #expect(request.user.contains("它在对冲。"))
+        #expect(request.user.contains("- hedge：对冲"))
+        #expect(request.user.contains("读者：为什么？"))
+        #expect(!request.user.contains("失败的"))
+        #expect(request.user.hasSuffix("读者现在追问：再举个例子"))
+        #expect(request.system.contains("中级"))
+    }
+
+    @Test func learningTranslationsStayBare() {
+        let context = PassageContext(bookTitle: "", passage: "It hedges.", readerLanguage: "简体中文")
+        #expect(PromptBuilder.request(for: .translate, context: context, learning: true).user.contains("不加说明"))
+        #expect(PromptBuilder.request(for: .translate, context: context).user.contains("关键词"))
+    }
+}

@@ -51,6 +51,8 @@ public enum AIError: LocalizedError, Equatable {
     case http(status: Int, message: String)
     case refused
     case empty
+    /// The model answered, but not in the shape asked for (a JSON card).
+    case badFormat
 
     /// One short line for a margin card. The provider's own message stays in `detail`.
     public var errorDescription: String? {
@@ -66,6 +68,7 @@ public enum AIError: LocalizedError, Equatable {
             }
         case .refused: "模型拒绝回答这个问题。"
         case .empty: "模型没有返回内容。"
+        case .badFormat: "回答的格式不对，可以重试或换个模型。"
         }
     }
 

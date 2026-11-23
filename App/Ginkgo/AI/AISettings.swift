@@ -1,5 +1,6 @@
 import Foundation
 import GinkgoAI
+import NaturalLanguage
 import Observation
 
 /// The reader's AI choices. Keys live in the keychain; everything else in user defaults.
@@ -16,6 +17,10 @@ final class AISettings {
     var readerLanguage: String {
         didSet { defaults.set(readerLanguage, forKey: "ai.readerLanguage") }
     }
+    /// How well the reader knows the languages they read in. Shapes word cards, key expressions and analysis.
+    var learnerLevel: LearnerLevel {
+        didSet { defaults.set(learnerLevel.rawValue, forKey: "ai.learnerLevel") }
+    }
     /// Bumped when a key changes so views re-read `hasKey`.
     private(set) var keyRevision = 0
 
@@ -24,6 +29,28 @@ final class AISettings {
     private init() {
         provider = AIProviderKind(rawValue: defaults.string(forKey: "ai.provider") ?? "") ?? .openAI
         readerLanguage = defaults.string(forKey: "ai.readerLanguage") ?? Self.systemLanguage
+        learnerLevel = LearnerLevel(rawValue: defaults.string(forKey: "ai.learnerLevel") ?? "") ?? .intermediate
+    }
+
+    /// Whether a passage is in a language other than the reader's own, so a translation should teach as well.
+    func isLearning(_ passage: String) -> Bool {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(passage)
+        guard let language = recognizer.dominantLanguage, language != .undetermined else { return false }
+        return !Self.sameLanguage(language, readerLanguage)
+    }
+
+    static func sameLanguage(_ language: NLLanguage, _ reader: String) -> Bool {
+        switch reader {
+        // A short CJK word is easily taken for Japanese or the other Chinese script; only kana makes it Japanese.
+        case "简体中文", "繁體中文": [.simplifiedChinese, .traditionalChinese].contains(language)
+        case "日本語": language == .japanese
+        case "한국어": language == .korean
+        case "Français": language == .french
+        case "Deutsch": language == .german
+        case "Español": language == .spanish
+        default: language == .english
+        }
     }
 
     func model(for p: AIProviderKind) -> String {

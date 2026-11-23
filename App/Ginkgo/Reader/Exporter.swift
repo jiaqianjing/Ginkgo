@@ -1,4 +1,5 @@
 import Foundation
+import GinkgoAI
 import GinkgoCore
 import PDFKit
 import PencilKit
@@ -21,9 +22,29 @@ enum Exporter {
                 if let q = record.question, !q.isEmpty { label += "：\(q)" }
                 out += label + "\n\n"
                 if let reply = record.replyText, !reply.isEmpty { out += reply + "\n\n" }
+                out += studyMarkdown(record.study)
+                for turn in record.thread where !turn.answer.isEmpty {
+                    out += "**追问**：\(turn.question)\n\n\(turn.answer)\n\n"
+                }
             }
             out += "---\n\n"
         }
+        return out
+    }
+
+    /// Key expressions and the grammar walk-through of a learner's translation. The word card is already the reply.
+    static func studyMarkdown(_ study: StudyNote) -> String {
+        var out = ""
+        if let items = study.keyItems?.items, !items.isEmpty {
+            out += "**重点表达**\n\n"
+            for item in items {
+                out += "- \(item.text)" + (item.meaning.map { "：\($0)" } ?? "")
+                if let note = item.note, !note.isEmpty { out += "（\(note)）" }
+                out += "\n"
+            }
+            out += "\n"
+        }
+        if let analysis = study.analysis { out += "**语法分析**\n\n\(analysis.summary)\n\n" }
         return out
     }
 
@@ -57,6 +78,11 @@ enum Exporter {
                     var text = record.taskLabel
                     if let q = record.question, !q.isEmpty { text += "：\(q)" }
                     if let reply = record.replyText, !reply.isEmpty { text += "\n\n\(reply)" }
+                    if let items = record.study.keyItems?.items, !items.isEmpty {
+                        text += "\n\n重点表达：\n" + items.map { "- \($0.text)" + ($0.meaning.map { "：\($0)" } ?? "") }.joined(separator: "\n")
+                    }
+                    if let analysis = record.study.analysis { text += "\n\n语法分析：\n\(analysis.summary)" }
+                    for turn in record.thread where !turn.answer.isEmpty { text += "\n\n追问：\(turn.question)\n\(turn.answer)" }
                     note.contents = text
                     page.addAnnotation(note)
                 }

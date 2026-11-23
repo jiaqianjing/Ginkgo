@@ -1,4 +1,5 @@
 import Foundation
+import GinkgoAI
 import GinkgoCore
 import SwiftData
 
@@ -23,6 +24,10 @@ final class AnnotationRecord {
     var replyError: String?
     /// Which model wrote the reply, e.g. "OpenAI · gpt-5.5".
     var replyModel: String?
+    /// Follow-up questions and answers after the first reply (`[FollowUp]` as JSON).
+    var threadData: Data?
+    /// Word card, key expressions and grammar analysis for a translation (`StudyNote` as JSON).
+    var studyData: Data?
     var book: Book?
 
     init(kind: AnnotationKind, anchor: Anchor, color: HighlightColor = .yellow) {
@@ -41,12 +46,22 @@ final class AnnotationRecord {
         set { replyStateRaw = newValue.rawValue }
     }
 
+    var thread: [FollowUp] {
+        get { StudyJSON.load([FollowUp].self, from: threadData) ?? [] }
+        set { threadData = newValue.isEmpty ? nil : StudyJSON.encode(newValue) }
+    }
+
+    var study: StudyNote {
+        get { StudyJSON.load(StudyNote.self, from: studyData) ?? StudyNote() }
+        set { studyData = newValue.isEmpty ? nil : StudyJSON.encode(newValue) }
+    }
+
     /// Has a margin note (an AI task or a handwritten question), not just a mark on the text or free ink.
     var hasNote: Bool { kind != .ink && (taskRaw != nil || question != nil) }
 
     var taskLabel: String {
         switch taskRaw {
-        case "translate": "翻译"
+        case "translate": studyData != nil && study.word != nil ? "查词" : "翻译"
         case "explain": "解释"
         default: "提问"
         }

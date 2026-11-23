@@ -1,3 +1,4 @@
+import GinkgoAI
 import GinkgoCore
 import PDFKit
 import SwiftData
@@ -47,6 +48,17 @@ import UIKit
         #expect(md.contains("第 3 页"))
         #expect(md.contains("**提问**：为什么？"))
         #expect(md.contains("因为冗余。"))
+    }
+
+    @Test func markdownCarriesFollowUpsAndKeyExpressions() {
+        let r = AnnotationRecord(kind: .highlight, anchor: .pdf(PDFAnchor(pageIndex: 0, rects: [], quote: "It hedges.")))
+        r.taskRaw = "translate"; r.replyText = "它在对冲。"
+        r.study = StudyNote(keyItems: KeyItems(items: [KeyItem(text: "hedge", meaning: "对冲")]))
+        r.thread = [FollowUp(question: "还有别的意思吗？", answer: "树篱。"), FollowUp(question: "没答完", error: "x")]
+        let md = Exporter.markdown(title: "Book", annotations: [r])
+        #expect(md.contains("- hedge：对冲"))
+        #expect(md.contains("**追问**：还有别的意思吗？\n\n树篱。"))
+        #expect(!md.contains("没答完"))
     }
 
     @Test func annotatedPDFCarriesHighlightsAndNotes() throws {
@@ -139,5 +151,34 @@ import UIKit
     @Test func aClosedSheetTakesNoRoom() {
         let layout = ReaderLayout(size: CGSize(width: 1210, height: 834), sidebar: true)
         #expect(!layout.scratchBeside && layout.hasMarginColumn)
+    }
+}
+
+@MainActor @Suite struct NoteThreadTests {
+    @Test func threadAndStudyRoundTripAndEmptyClearsStorage() {
+        let r = AnnotationRecord(kind: .highlight, anchor: .pdf(PDFAnchor(pageIndex: 0, rects: [], quote: "q")))
+        r.thread = [FollowUp(question: "a")]
+        r.updateLastTurn { $0.answer = "b" }
+        #expect(r.thread == [FollowUp(question: "a", answer: "b")])
+        r.study.keyItemsError = "x"
+        #expect(r.study.keyItemsError == "x")
+        r.thread = []; r.study = StudyNote()
+        #expect(r.threadData == nil && r.studyData == nil)
+    }
+
+    @Test func undoSnapshotSettlesAnUnansweredFollowUp() {
+        let r = AnnotationRecord(kind: .highlight, anchor: .pdf(PDFAnchor(pageIndex: 0, rects: [], quote: "q")))
+        r.thread = [FollowUp(question: "a", answer: "b"), FollowUp(question: "c")]
+        let copy = AnnotationRecord(kind: .highlight, anchor: .pdf(PDFAnchor(pageIndex: 0, rects: [], quote: "q")))
+        AnnotationSnapshot(r).apply(to: copy)
+        #expect(copy.thread.count == 2)
+        #expect(copy.thread[1].error != nil)
+    }
+
+    @Test func onlyForeignPassagesTeach() {
+        #expect(AISettings.sameLanguage(.simplifiedChinese, "简体中文"))
+        #expect(AISettings.sameLanguage(.traditionalChinese, "简体中文"))
+        #expect(!AISettings.sameLanguage(.english, "简体中文"))
+        #expect(AISettings.sameLanguage(.english, "English"))
     }
 }

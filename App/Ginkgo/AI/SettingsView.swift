@@ -62,10 +62,24 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("回答") {
+                Section {
                     Picker("回答语言", selection: $settings.readerLanguage) {
                         ForEach(AISettings.languages, id: \.self) { Text($0).tag($0) }
                     }
+                    Picker("我的外语水平", selection: $settings.learnerLevel) {
+                        ForEach(LearnerLevel.allCases) { level in
+                            VStack(alignment: .leading) {
+                                Text(level.displayName)
+                                Text(level.detail).font(Theme.captionFont).foregroundStyle(Theme.secondaryInk)
+                            }
+                            .tag(level)
+                        }
+                    }
+                    .pickerStyle(.navigationLink)
+                } header: {
+                    Text("回答")
+                } footer: {
+                    Text("翻译外语时，选一个词出词卡，选一句话出译文和重点表达，难句可以再要语法分析。挑哪些表达、讲多深，按你的外语水平来。")
                 }
 
                 Section {

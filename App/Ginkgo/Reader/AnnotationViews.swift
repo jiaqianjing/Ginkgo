@@ -1,3 +1,4 @@
+import GinkgoAI
 import GinkgoCore
 import PencilKit
 import SwiftUI
@@ -96,7 +97,8 @@ enum MarkPainter {
 
 // MARK: - Note card
 
-/// One AI note: what was asked, then the answer as it streams in.
+/// One AI note: what was asked, the answer as it streams in, and the follow-up rounds under it.
+/// Translations of a language the reader is learning add a word card, or key expressions and a grammar walk-through.
 struct NoteCard: View {
     let model: ReaderModel
     let record: AnnotationRecord
@@ -106,21 +108,23 @@ struct NoteCard: View {
     var compact = false
     @State private var fullHeight: CGFloat = 0
     @State private var shownHeight: CGFloat = 0
+    @State private var showEarlier = false
 
-    private var truncated: Bool { compact && fullHeight > shownHeight + 1 }
+    private var activity: NoteActivity? { model.busy[record.id] }
+    private var study: StudyNote { record.study }
+    private var thread: [FollowUp] { record.thread }
+    private var working: Bool { record.replyState == .pending || record.replyState == .streaming || activity != nil }
+    private var canFollowUp: Bool { record.replyState == .done && activity == nil }
+
+    /// Parts the floating card leaves for the full view.
+    private var hidesParts: Bool {
+        compact && ((study.keyItems?.items.count ?? 0) > NoteParts.compactKeyItems || study.analysis != nil || !thread.isEmpty)
+    }
+    private var truncated: Bool { compact && (fullHeight > shownHeight + 1 || hidesParts) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.rhythm) {
-            HStack(spacing: Theme.Space.compact) {
-                Circle().fill(record.color.ink).frame(width: Theme.Card.dotSize, height: Theme.Card.dotSize)
-                Text(record.taskLabel)
-                    .font(Theme.labelFont)
-                    .foregroundStyle(record.color.ink)
-                Spacer(minLength: 0)
-                if record.replyState == .pending || record.replyState == .streaming {
-                    ThinkingDots(color: record.color.ink)
-                }
-            }
+            header
             if let data = record.inkData, let ink = try? PKDrawing(data: data) {
                 InkImage(drawing: ink, maxWidth: width - Theme.cardInset * 2)
                     .modifier(NoteInkAppearance())
@@ -133,6 +137,9 @@ struct NoteCard: View {
                     .foregroundStyle(Theme.ink)
             }
             answer
+            if record.replyState == .done { studyParts }
+            followUps
+            footer
         }
         .padding(Theme.cardInset)
         .frame(width: width, alignment: .leading)
@@ -155,10 +162,40 @@ struct NoteCard: View {
             if let text = record.replyText {
                 Button("复制回答", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
             }
+            if canFollowUp {
+                Button("追问", systemImage: "arrow.turn.down.right") { model.asking = .followUp(record.id) }
+            }
+            Menu("换颜色", systemImage: "paintpalette") { colorChoices }
             Button("重新回答", systemImage: "arrow.clockwise") { model.retry(record.id) }
             Button("收起", systemImage: "chevron.up") { withAnimation { model.toggle(record.id) } }
             Divider()
             Button("删除批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
+        }
+    }
+
+    /// The colour dot doubles as the colour menu.
+    private var header: some View {
+        HStack(spacing: Theme.Space.compact) {
+            Menu { colorChoices } label: {
+                Circle().fill(record.color.ink).frame(width: Theme.Card.dotSize, height: Theme.Card.dotSize)
+                    .frame(width: Theme.Card.dotHit, height: Theme.Card.dotHit)
+                    .contentShape(Rectangle())
+            }
+            .padding(-(Theme.Card.dotHit - Theme.Card.dotSize) / 2)
+            .accessibilityLabel("换颜色，现在是\(record.color.name)色")
+            Text(record.taskLabel)
+                .font(Theme.labelFont)
+                .foregroundStyle(record.color.ink)
+            Spacer(minLength: 0)
+            if working { ThinkingDots(color: record.color.ink) }
+        }
+    }
+
+    @ViewBuilder private var colorChoices: some View {
+        ForEach(HighlightColor.allCases, id: \.self) { color in
+            Button { withAnimation(.smooth(duration: 0.2)) { model.recolor(record.id, color) } } label: {
+                if record.color == color { Label("\(color.name)色", systemImage: "checkmark") } else { Text("\(color.name)色") }
+            }
         }
     }
 
@@ -181,28 +218,100 @@ struct NoteCard: View {
         case .pending:
             Text("正在思考…").font(Theme.footnoteFont).foregroundStyle(Theme.secondaryInk)
         default:
-            if let text = record.replyText {
-                VStack(alignment: .leading, spacing: Theme.rhythm) {
-                    answerText(text)
-                        .lineLimit(compact ? Theme.Card.compactLines : nil)
-                        .textSelection(.enabled)
-                        .onGeometryChange(for: CGFloat.self, of: \.size.height) { shownHeight = $0 }
-                        .background(alignment: .top) {
-                            if compact {
-                                answerText(text).hidden()
-                                    .onGeometryChange(for: CGFloat.self, of: \.size.height) { fullHeight = $0 }
-                            }
+            if let word = study.word {
+                WordCardView(card: word)
+            } else if let text = record.replyText {
+                answerText(text)
+                    .lineLimit(compact ? Theme.Card.compactLines : nil)
+                    .textSelection(.enabled)
+                    .onGeometryChange(for: CGFloat.self, of: \.size.height) { shownHeight = $0 }
+                    .background(alignment: .top) {
+                        if compact {
+                            answerText(text).hidden()
+                                .onGeometryChange(for: CGFloat.self, of: \.size.height) { fullHeight = $0 }
                         }
-                    if truncated {
-                        Button { withAnimation(.smooth(duration: 0.3)) { model.expand(record.id) } } label: {
-                            Label("展开全文", systemImage: "sidebar.right")
-                                .font(Theme.actionFont)
-                                .foregroundStyle(record.color.ink)
-                        }
-                        .buttonStyle(.plain)
+                    }
+            }
+        }
+    }
+
+    /// Key expressions, then the grammar walk-through or the button that asks for it.
+    @ViewBuilder private var studyParts: some View {
+        if let items = study.keyItems?.items, !items.isEmpty {
+            NoteParts.divider
+            KeyItemsView(items: compact ? Array(items.prefix(NoteParts.compactKeyItems)) : items)
+        }
+        if activity == .keyItems {
+            NoteParts.progress("正在找重点表达…")
+        } else if let error = study.keyItemsError {
+            NoteParts.failure("重点表达没拿到：\(error)") { model.retryKeyItems(record.id) }
+        }
+        if activity == .analysis {
+            NoteParts.progress("正在分析句子…")
+        } else if let analysis = study.analysis {
+            if !compact {
+                NoteParts.divider
+                AnalysisView(analysis: analysis)
+            }
+        } else if let error = study.analysisError {
+            NoteParts.failure("分析没拿到：\(error)") { model.analyze(record.id) }
+        } else if study.keyItems?.analysisWorthy == true, activity == nil {
+            Button { model.analyze(record.id) } label: {
+                Label {
+                    Text("语法分析") + Text(study.keyItems?.analysisHint.flatMap { $0.isEmpty ? nil : " · \($0)" } ?? "")
+                        .foregroundStyle(Theme.secondaryInk)
+                } icon: {
+                    Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                }
+                .font(Theme.actionFont)
+                .foregroundStyle(record.color.ink)
+                .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// Follow-up rounds. The floating card shows the latest; the full view folds all but the latest.
+    @ViewBuilder private var followUps: some View {
+        if !thread.isEmpty {
+            let earlier = thread.count - 1
+            let shown = compact || (!showEarlier && earlier > 0) ? Array(thread.suffix(1)) : thread
+            NoteParts.divider
+            if !compact, earlier > 0 {
+                Button { withAnimation(.smooth(duration: 0.2)) { showEarlier.toggle() } } label: {
+                    Label(showEarlier ? "收起前 \(earlier) 轮" : "前 \(earlier) 轮追问",
+                          systemImage: showEarlier ? "chevron.up" : "chevron.down")
+                        .font(Theme.captionFont)
+                        .foregroundStyle(Theme.secondaryInk)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(Array(shown.enumerated()), id: \.offset) { offset, turn in
+                FollowUpView(turn: turn, waiting: offset == shown.count - 1 && activity == .followUp,
+                             lineLimit: compact ? Theme.Card.compactLines : nil,
+                             retry: offset == shown.count - 1 ? { model.retryFollowUp(record.id) } : nil)
+            }
+        }
+    }
+
+    @ViewBuilder private var footer: some View {
+        if canFollowUp || truncated {
+            HStack(spacing: Theme.Space.regular) {
+                if canFollowUp {
+                    Button { model.asking = .followUp(record.id) } label: {
+                        Label("追问", systemImage: "arrow.turn.down.right")
+                    }
+                }
+                Spacer(minLength: 0)
+                if truncated {
+                    Button { withAnimation(.smooth(duration: 0.3)) { model.expand(record.id) } } label: {
+                        Label("展开全文", systemImage: "sidebar.right")
                     }
                 }
             }
+            .font(Theme.actionFont)
+            .foregroundStyle(record.color.ink)
+            .buttonStyle(.plain)
         }
     }
 }
@@ -570,9 +679,11 @@ struct AskSheet: View {
     private var quote: String {
         switch target {
         case .selection(let s): s.string ?? ""
-        case .annotation(let id): model.annotation(id)?.anchor?.quote ?? ""
+        case .annotation(let id), .followUp(let id): model.annotation(id)?.anchor?.quote ?? ""
         }
     }
+
+    private var isFollowUp: Bool { if case .followUp = target { true } else { false } }
 
     var body: some View {
         NavigationStack {
@@ -585,7 +696,7 @@ struct AskSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: Theme.cardRadius).fill(Theme.margin))
                     .overlay(alignment: .leading) { Rectangle().fill(Theme.accent.opacity(Theme.quoteRuleOpacity)).frame(width: Theme.noteRuleWidth) }
-                TextField("比如：这句话为什么这么说？", text: $question, axis: .vertical)
+                TextField(isFollowUp ? "比如：能再举个例子吗？" : "比如：这句话为什么这么说？", text: $question, axis: .vertical)
                     .lineLimit(2...6)
                     .focused($focused)
                     .textFieldStyle(.roundedBorder)
@@ -594,12 +705,12 @@ struct AskSheet: View {
             }
             .padding(Theme.Space.section)
             .background(Theme.paper)
-            .navigationTitle("向 AI 提问")
+            .navigationTitle(isFollowUp ? "追问" : "向 AI 提问")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("提问", action: send).disabled(question.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button(isFollowUp ? "追问" : "提问", action: send).disabled(question.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear { focused = true }
@@ -613,6 +724,7 @@ struct AskSheet: View {
         switch target {
         case .selection(let s): model.run(.ask(q), on: s)
         case .annotation(let id): model.run(.ask(q), on: id)
+        case .followUp(let id): model.followUp(q, on: id)
         }
         dismiss()
     }

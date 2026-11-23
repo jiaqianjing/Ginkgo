@@ -58,6 +58,7 @@ Ginkgo/
 - **三家实现**：OpenAI（Responses API）、Anthropic（Messages API）、Gemini（generateContent）。只用 `URLSession`，不引入第三方 SDK。
 - **`PromptBuilder`**：四种任务（翻译、解释、提问、手写提问）。上下文包括选中的原文、前后段落、书名，以及目标语言（默认跟随系统语言）。要求回答简短，像页边批注，不像聊天。
 - **`ModelCatalog`**：每家三个精选模型（快速 / 均衡 / 最强），快速档是推荐和默认值，用户没选过就跟着推荐走。填了 key 后拉取服务商的模型列表，去掉非对话模型、过期模型和带日期的快照，放进「更多模型」。`AnswerLatency` 给测试连接计时（首字、完成）。
+- **追问与学语言**（2026-11-23 起，#10、#11）：`Study.swift`。`FollowUp` 是一轮追问；`PromptBuilder.followUp` 把原文、最初的批注、重点表达、语法分析和之前几轮打包成单轮请求。外语翻译时按选中长度分流（`PassageShape.isLookup`）：一个词或短语出词卡（`WordCard`，JSON），一句话先流式出译文，再取重点表达（`KeyItems`，含是否值得做语法分析），语法分析（`SentenceAnalysis`）由读者点了才请求。JSON 回答用 `AIClient.collect` 收齐后由 `StudyJSON` 解析，容忍代码块和前后多余的话。`LearnerLevel`（入门 / 中级 / 高级，默认中级）决定挑哪些表达、讲多深。
 - **`KeyStore`**：API key 存在钥匙串里，只在本机，不进 iCloud。
 - **缓存**：以（任务、原文哈希、模型）为键，同一段翻译不重复花钱。
 
@@ -76,6 +77,7 @@ Ginkgo/
   - 阅读模式下批注几乎隐形；回顾模式下全部展开。
 - **撤销与重做**（2026-11-22 起，#4）：所有改动都登记到窗口的 `UndoManager`（`Reader/Undo.swift`），所以系统的三指手势和 ⌘Z 都能用；`ReaderPDFView` 做第一响应者，让它们找得到这个撤销管理器。删除时存一份 `AnnotationSnapshot`，撤销时按原来的 id 和 AI 回答恢复。页面画布（`PageCanvas`）不往窗口登记 PencilKit 自己的撤销，而是由 `PageInk` 在每次解释笔画之后登记一步，所以"一笔荧光笔变成高亮"撤销时是一步。
 - **草稿纸**（2026-11-22 起，#9）：`Reader/Scratch.swift`。每本书一张，存在 `Book.scratchData`（PKDrawing），写一笔存一笔。工具栏和 Pencil 捏合扇形里都有入口。宽窗口里放在书页右侧（`ReaderLayout.scratchBeside`，这时不显示侧边栏），窄窗口里浮在书页上、从工具栏下方开始；左边缘可拖宽。画布用工具栏当前的笔和颜色，没选工具时就是钢笔，手指开关同样适用；纸面向下无限延伸。草稿纸有自己的 `UndoManager`（`ReaderModel.scratchUndo`），打开时工具栏、⌘Z 和三指手势撤销的都是草稿，书里的改动照旧登记到书的撤销管理器；草稿纸收起时它的撤销历史随画布一起清掉。打开时关掉 iOS 26 的内容区返回手势，否则从左往右的一笔会退出阅读器。
+- **批注卡片**（#10、#11）：卡片左上角的颜色点是颜色菜单，长按卡片也能换颜色。回答完成后底部有「追问」，问答接在原回答下面，存在 `AnnotationRecord.threadData`；浮起的卡片只显示最新一轮，完整视图把更早的折叠成「前 N 轮」。外语翻译的词卡、重点表达和语法分析存在 `studyData`（`StudyNote`）。是否算外语由 `AISettings.isLearning` 用 NaturalLanguage 判断。请求统一走 `Reader/NoteAI.swift` 的 `perform`：每条批注同时只有一个请求，`ReaderModel.busy` 告诉卡片正在等什么。追问可以撤销，导出时一并带上。
 - **持久化**：
   - SwiftData：`Book`、`AnnotationRecord`、`Reply`。
   - 现在就按 CloudKit 的约束设计：所有属性可空或有默认值，不用唯一约束，关系都可选。等开通 iCloud 时直接打开同步，不用迁移数据。
