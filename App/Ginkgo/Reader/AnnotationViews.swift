@@ -198,6 +198,13 @@ struct NoteCard: View {
                 .foregroundStyle(record.color.ink)
             Spacer(minLength: 0)
             if working { ThinkingDots(color: record.color.ink) }
+            if model.focused == record.id {
+                ViewThatFits(in: .horizontal) {
+                    quickActions
+                    EmptyView()
+                }
+                .transition(.opacity)
+            }
             Menu { noteActions } label: {
                 Image(systemName: "ellipsis")
                     .font(Theme.labelFont)
@@ -207,6 +214,44 @@ struct NoteCard: View {
             }
             .padding(-Theme.Space.compact)
             .accessibilityLabel("更多操作")
+        }
+    }
+
+    /// On the card in focus: the colours and delete, one tap each. The rest stays behind ⋯.
+    private var quickActions: some View {
+        HStack(spacing: 0) {
+            ForEach(HighlightColor.allCases, id: \.self) { color in
+                Button { withAnimation(.smooth(duration: 0.2)) { model.recolor(record.id, color) } } label: {
+                    Circle().fill(color.fill)
+                        .overlay { Circle().strokeBorder(color.ink.opacity(record.color == color ? Theme.Swatch.selectedOpacity : Theme.Swatch.idleOpacity),
+                                                         lineWidth: record.color == color ? Theme.Swatch.selectedBorder : Theme.Swatch.idleBorder) }
+                        .frame(width: Theme.Card.swatch, height: Theme.Card.swatch)
+                        .frame(width: Theme.Card.swatchHit, height: Theme.Card.dotHit)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("\(color.name)色")
+                .accessibilityAddTraits(record.color == color ? .isSelected : [])
+            }
+            Button(role: .destructive) { withAnimation { quickDelete() } } label: {
+                Image(systemName: "trash")
+                    .font(Theme.labelFont)
+                    .foregroundStyle(Theme.secondaryInk)
+                    .frame(width: Theme.Card.dotHit, height: Theme.Card.dotHit)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(record.kind == .highlight ? "删除批注，保留划线" : "删除批注")
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+    }
+
+    /// The trash on the card removes the card; the mark under it stays (tap it to delete it too). Undo restores.
+    private func quickDelete() {
+        if record.kind == .highlight {
+            model.removeNote(record.id)
+            model.show(notice: "批注已删除，划线还在。可以撤销")
+        } else {
+            model.delete(record.id)
         }
     }
 

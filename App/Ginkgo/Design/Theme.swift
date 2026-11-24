@@ -131,6 +131,9 @@ enum Theme {
         static let dotSize: CGFloat = 7
         /// Touch target around the colour dot, which opens the colour menu.
         static let dotHit: CGFloat = 28
+        /// Quick colour swatches in a focused card's header.
+        static let swatch: CGFloat = 14
+        static let swatchHit: CGFloat = 24
         static let ruleRadius: CGFloat = 1
         static let ruleOpacity = 0.65
         static let focusOpacity = 0.35

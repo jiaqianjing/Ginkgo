@@ -272,6 +272,29 @@ final class ReaderPDFView: PDFView {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil { DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() } }
+        guardKeyboard(window != nil)
+    }
+
+    private var keyboardGuard: NSObjectProtocol?
+
+    /// PDFKit's page view is a text-input responder (for selecting text). When focus lands back on it, e.g. after
+    /// a card's menu closes, iPadOS raises the software keyboard though nothing here takes typing. Focus goes back
+    /// to the reader, which keeps ⌘Z and the undo gestures working, and the keyboard stays down.
+    private func guardKeyboard(_ on: Bool) {
+        if !on {
+            keyboardGuard.map(NotificationCenter.default.removeObserver)
+            keyboardGuard = nil
+            return
+        }
+        guard keyboardGuard == nil else { return }
+        keyboardGuard = NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil,
+                                                               queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let responder = UIResponder.firstResponder as? UIView, responder !== self,
+                      responder.isDescendant(of: self) else { return }
+                self.becomeFirstResponder()
+            }
+        }
     }
     private var savedTouchTypes: [ObjectIdentifier: [NSNumber]] = [:]
 
@@ -326,4 +349,17 @@ extension UIView {
         }
         return nil
     }
+}
+
+extension UIResponder {
+    nonisolated(unsafe) private static weak var found: UIResponder?
+
+    /// The window's current first responder, found by sending an action down the responder chain.
+    static var firstResponder: UIResponder? {
+        found = nil
+        UIApplication.shared.sendAction(#selector(captureFirstResponder), to: nil, from: nil, for: nil)
+        return found
+    }
+
+    @objc private func captureFirstResponder() { UIResponder.found = self }
 }
