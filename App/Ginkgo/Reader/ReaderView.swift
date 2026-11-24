@@ -36,6 +36,7 @@ struct ReaderView: View {
 
 private struct ReaderContent: View {
     @Bindable var model: ReaderModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var pageIndex = 0
 
     var body: some View {
@@ -146,9 +147,10 @@ private struct ReaderContent: View {
         .statusBarHidden(!model.chromeVisible)
         .toolbar { toolbar }
         .sheet(item: $model.asking) { AskSheet(model: model, target: $0) }
-        .sheet(isPresented: $model.showSettings) { SettingsView() }
+        .sheet(isPresented: $model.showSettings, onDismiss: model.refreshFingerInput) { SettingsView() }
 
         .onAppear { pageIndex = model.book.lastPageIndex }
+        .onChange(of: scenePhase) { _, phase in if phase == .active { model.refreshFingerInput() } }
         .onDisappear { model.pageInk.saveAll(); model.saveScratch() }
         .task { await DebugLaunch.annotateIfRequested(model) }
     }
@@ -163,7 +165,7 @@ private struct ReaderContent: View {
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Button("批注", systemImage: "list.bullet.rectangle") { withAnimation(.smooth) { model.showNotes.toggle() } }
-            Button("AI 设置", systemImage: "gearshape") { model.showSettings = true }
+            Button("设置", systemImage: "gearshape") { model.showSettings = true }
         }
     }
 

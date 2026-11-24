@@ -182,3 +182,11 @@ import UIKit
         #expect(AISettings.sameLanguage(.english, "English"))
     }
 }
+
+@MainActor struct FingerInputTests {
+    @Test func explicitChoicesOverrideTheSystem() {
+        #expect(FingerInput.draw.fingersDraw)
+        #expect(!FingerInput.pencilOnly.fingersDraw)
+        #expect(FingerInput.system.fingersDraw == !UIPencilInteraction.prefersPencilOnlyDrawing)
+    }
+}

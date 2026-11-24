@@ -116,15 +116,14 @@ struct ToolSettings {
         set { d.set(newValue.rawValue, forKey: "pen.underlineStyle") }
     }
 
-    /// Whether fingers use the tool. Until the reader chooses, follow the system setting "Only Draw with Apple
-    /// Pencil" (on once a Pencil has been paired), so an iPad without a Pencil can draw with a finger.
-    static var fingersDraw: Bool {
-        get {
-            if let chosen = d.object(forKey: "pen.fingersDraw") as? Bool { return chosen }
-            return !UIPencilInteraction.prefersPencilOnlyDrawing
-        }
-        set { d.set(newValue, forKey: "pen.fingersDraw") }
+    /// What fingers do while a tool is picked. Chosen in Settings; by default it follows the system.
+    static var fingerInput: FingerInput {
+        get { d.string(forKey: FingerInput.key).flatMap(FingerInput.init(rawValue:)) ?? .system }
+        set { d.set(newValue.rawValue, forKey: FingerInput.key) }
     }
+
+    /// Whether fingers use the tool right now.
+    static var fingersDraw: Bool { fingerInput.fingersDraw }
 
     /// Highlighter keeps the stroke as drawn instead of following the text (for scanned pages, or a hand-drawn look).
     static var highlighterFreehand: Bool {
@@ -135,6 +134,37 @@ struct ToolSettings {
     static var seenHint: Bool {
         get { d.bool(forKey: "pen.seenHint") }
         set { d.set(newValue, forKey: "pen.seenHint") }
+    }
+}
+
+/// What fingers do on the page while a tool is picked.
+enum FingerInput: String, CaseIterable, Identifiable {
+    /// The system's "Only Draw with Apple Pencil", which turns on once a Pencil has been used. An iPad without a
+    /// Pencil draws with a finger; with one, fingers scroll and select.
+    case system
+    /// Fingers use the tool; two fingers scroll.
+    case draw
+    /// Only Apple Pencil uses the tool; fingers scroll and select.
+    case pencilOnly
+
+    static let key = "pen.fingerInput"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .system: "跟随系统设置"
+        case .draw: "手指也能用工具"
+        case .pencilOnly: "只用 Apple Pencil"
+        }
+    }
+
+    var fingersDraw: Bool {
+        switch self {
+        case .system: !UIPencilInteraction.prefersPencilOnlyDrawing
+        case .draw: true
+        case .pencilOnly: false
+        }
     }
 }
 
@@ -152,7 +182,7 @@ struct ToolTray: View {
                 Divider().frame(height: Theme.Tray.dividerLength)
             }
             tools
-            if !vertical { fingerToggle; scratchToggle }
+            if !vertical { scratchToggle }
             if let tool = model.tool, tool != .lasso, tool != .eraser {
                 Divider().frame(width: vertical ? Theme.Tray.dividerLength : nil, height: vertical ? nil : Theme.Tray.dividerLength)
                 options(for: tool)
@@ -232,24 +262,6 @@ struct ToolTray: View {
         .accessibilityLabel("草稿")
         .accessibilityValue(on ? "已打开" : "已收起")
         .accessibilityHint("一张和书分开的纸，随手涂写")
-    }
-
-    /// Fingers draw too: for an iPad without a Pencil at hand. Then two fingers scroll.
-    private var fingerToggle: some View {
-        let on = model.fingersDraw
-        return Button { withAnimation(.smooth(duration: 0.2)) { model.fingersDraw.toggle() } } label: {
-            Image(systemName: on ? "hand.draw.fill" : "hand.draw")
-                .font(Theme.Tray.iconFont)
-                .foregroundStyle(on ? Theme.accent : Theme.secondaryInk)
-                .frame(width: Theme.Tray.button, height: Theme.Tray.button)
-                .background {
-                    if on { RoundedRectangle(cornerRadius: Theme.Tray.selectionRadius).fill(Theme.accent.opacity(Theme.Tray.selectionOpacity)) }
-                }
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel("用手指使用工具")
-        .accessibilityValue(on ? "开" : "关")
-        .accessibilityHint(on ? "单指使用工具，双指滚动" : "只有 Apple Pencil 使用工具，手指滚动和选字")
     }
 
     private func toolTint(_ tool: PenTool) -> Color? {
@@ -365,8 +377,8 @@ struct ToolHint: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.rhythm) {
             Text(model.fingersDraw
-                 ? "单指直接用上面的工具，双指滚动和缩放。再点一次当前工具可以放下它，回到选字。手形按钮切换手指是否画。"
-                 : "Apple Pencil 直接用上面的工具，手指照常滚动和选字。再点一次当前工具可以放下它。没有笔时，点手形按钮让手指也能画。")
+                 ? "单指直接用上面的工具，双指滚动和缩放。再点一次当前工具可以放下它，回到选字。在设置里可以改成只用 Apple Pencil。"
+                 : "Apple Pencil 直接用上面的工具，手指照常滚动和选字。再点一次当前工具可以放下它。没有笔时，可以在设置里让手指也能用工具。")
                 .font(Theme.footnoteFont)
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)

@@ -113,10 +113,15 @@ final class ReaderModel {
     var markPreview: MarkPreview?
     /// Whether the current tool marks text live (so the page canvas stays out of the way).
     var marksLive: Bool { tool?.snapsToText(freehand: highlighterFreehand) ?? false }
-    /// Fingers use the tool too (no Pencil at hand). Follows the system's "Only Draw with Apple Pencil" until
-    /// the reader flips it in the tray.
-    var fingersDraw = ToolSettings.fingersDraw {
-        didSet { ToolSettings.fingersDraw = fingersDraw; applyTouchRules() }
+    /// Fingers use the tool too (no Pencil at hand). From Settings, by default the system's "Only Draw with
+    /// Apple Pencil"; re-read when Settings closes or the app comes back, since either may have changed it.
+    private(set) var fingersDraw = ToolSettings.fingersDraw {
+        didSet { applyTouchRules() }
+    }
+
+    func refreshFingerInput() {
+        let now = ToolSettings.fingersDraw
+        if now != fingersDraw { fingersDraw = now }
     }
 
     func applyTouchRules() {

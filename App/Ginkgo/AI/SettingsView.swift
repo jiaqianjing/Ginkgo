@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var askingCustom = false
     @State private var testState: TestState = .idle
     @AppStorage("gesture.twoFingerUndo") private var twoFingerUndo = true
+    @AppStorage(FingerInput.key) private var fingerInput = FingerInput.system
 
     enum TestState: Equatable { case idle, running, ok(String, latency: String), failed(String) }
 
@@ -83,11 +84,14 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Picker("用手指画", selection: $fingerInput) {
+                        ForEach(FingerInput.allCases) { Text($0.label).tag($0) }
+                    }
                     Toggle("双指轻点撤销", isOn: $twoFingerUndo)
                 } header: {
                     Text("手势")
                 } footer: {
-                    Text("拿起 Pencil 工具时，双指轻点页面撤销上一步。系统手势始终可用：三指左滑撤销，三指右滑重做，三指轻点弹出编辑栏；接键盘时用 ⌘Z 和 ⇧⌘Z。")
+                    Text("用手指画：跟随系统时，用过 Apple Pencil 就只有笔能画，手指滚动和选字；没有笔的 iPad 用手指画，双指滚动。拿起工具时，双指轻点页面撤销上一步。系统手势始终可用：三指左滑撤销，三指右滑重做，三指轻点弹出编辑栏；接键盘时用 ⌘Z 和 ⇧⌘Z。")
                 }
             }
             .scrollContentBackground(.hidden)
