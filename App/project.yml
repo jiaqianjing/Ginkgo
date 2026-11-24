@@ -1,0 +1,70 @@
+# Ginkgo app. Generate the Xcode project with `xcodegen` in this folder (the .xcodeproj is not committed).
+name: Ginkgo
+options:
+  deploymentTarget:
+    iOS: "26.0"
+packages:
+  GinkgoKit:
+    path: ../Packages/GinkgoKit
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: UBS9FUBNFR
+targets:
+  Ginkgo:
+    type: application
+    platform: iOS
+    sources:
+      - path: Ginkgo
+    dependencies:
+      - package: GinkgoKit
+        product: GinkgoCore
+      - package: GinkgoKit
+        product: GinkgoAI
+    info:
+      path: Ginkgo/Info.plist
+      properties:
+        CFBundleDisplayName: Ginkgo
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Lets "Share / Open in Ginkgo" hand PDFs to the app; they are copied into the library.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: PDF
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.adobe.pdf]
+        LSSupportsOpeningDocumentsInPlace: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kenjia.ginkgo
+        TARGETED_DEVICE_FAMILY: "2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+  GinkgoTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GinkgoTests
+    dependencies:
+      - target: Ginkgo
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: com.kenjia.ginkgo.tests
+schemes:
+  Ginkgo:
+    build:
+      targets:
+        Ginkgo: all
+        GinkgoTests: [test]
+    test:
+      targets: [GinkgoTests]
