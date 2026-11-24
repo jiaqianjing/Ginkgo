@@ -19,7 +19,20 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
     private var settled: [Int: PKDrawing] = [:]
 
     /// Re-reads the model's tool and colours onto every canvas.
-    func toolChanged() { canvases.values.forEach(configure) }
+    func toolChanged() {
+        flushPending()
+        canvases.values.forEach(configure)
+    }
+
+    /// Strokes still waiting for their pause are read now, so a new tool (the eraser above all) starts from settled
+    /// ink: otherwise the last word and what the eraser did to it would land as one undo step, uninterpreted.
+    func flushPending() {
+        for (index, work) in pending where !work.isCancelled {
+            work.cancel()
+            if let canvas = canvases[index] { interpret(canvas, page: index) }
+        }
+        pending.removeAll()
+    }
 
     // MARK: Overlay provider
 
@@ -67,7 +80,7 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
         case .lasso?:
             canvas.tool = PKInkingTool(.pencil, color: UIColor(Theme.accent).withAlphaComponent(0.7), width: 2)
         case .eraser?:
-            canvas.tool = PKEraserTool(.vector)
+            canvas.tool = PKEraserTool(.bitmap)  // rubs out what it touches; its hover preview is a plain circle
         default:
             canvas.tool = PKInkingTool(.pen, color: UIColor(model?.inkColor.color ?? Theme.penGraphite), width: 2.2)
         }
@@ -83,6 +96,8 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
     }
 
     private var tracked: Set<ObjectIdentifier> = []
+    /// Pages the eraser changed since they were last interpreted.
+    private var erased: Set<Int> = []
 
     @objc private func erasing(_ g: UIGestureRecognizer) {
         guard g.state == .began || g.state == .changed, let model, model.tool == .eraser,
@@ -105,6 +120,12 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
             self.interpret(canvas, page: index)
         }
         pending[index] = work
+        // The pixel eraser cuts strokes into pieces; those are ink as it was, not new strokes to interpret.
+        if model?.tool == .eraser {
+            erased.insert(index)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+            return
+        }
         // Handwriting needs a pause to finish a word; marks, lassos and a tap on a mark can act almost at once.
         let strokes = canvas.drawing.strokes
         let last = strokes.last.flatMap { PenTool(inkType: $0.ink.inkType) }
@@ -120,8 +141,9 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate 
         let start = min(processed[index] ?? 0, strokes.count)
         let fresh = Array(strokes[start...])
         let before = settled[index] ?? PKDrawing()
-        guard !fresh.isEmpty else {
-            // No new strokes: the eraser removed some.
+        let wasErased = erased.remove(index) != nil
+        guard !fresh.isEmpty, !wasErased else {
+            // The eraser removed strokes or cut them into pieces: keep the drawing as it is.
             processed[index] = strokes.count
             if !Self.same(canvas.drawing, before) {
                 settled[index] = canvas.drawing
@@ -464,3 +486,4 @@ struct InkImage: View {
             .frame(width: b.width * scale, height: b.height * scale)
     }
 }
+

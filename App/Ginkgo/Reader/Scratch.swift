@@ -217,7 +217,7 @@ struct ScratchCanvas: UIViewRepresentable {
         case .lasso?:
             canvas.tool = PKLassoTool()
         case .eraser?:
-            canvas.tool = PKEraserTool(.vector)
+            canvas.tool = PKEraserTool(.bitmap)
         default:
             canvas.tool = PKInkingTool(.pen, color: UIColor(model.inkColor.color), width: 2.4)
         }

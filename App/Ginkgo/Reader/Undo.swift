@@ -148,8 +148,9 @@ extension ReaderModel {
         reload()
     }
 
-    func undo() { undoManager?.undo(); refreshUndoState() }
-    func redo() { undoManager?.redo(); refreshUndoState() }
+    /// Ink still waiting to be read is settled first, so undo takes back the last thing done, not the one before.
+    func undo() { pageInk.flushPending(); undoManager?.undo(); refreshUndoState() }
+    func redo() { pageInk.flushPending(); undoManager?.redo(); refreshUndoState() }
 
     func refreshUndoState() {
         DispatchQueue.main.async { [weak self] in
