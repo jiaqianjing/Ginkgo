@@ -9,7 +9,7 @@ import Vision
 /// the page. New strokes are interpreted by the tool that drew them (told apart by ink type): highlighter and
 /// underline strokes snap to the text and become marks, a lasso selects text, and pen writing in the page margin
 /// becomes a handwritten question. Other pen strokes stay as ink.
-final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
+final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate {
     weak var model: ReaderModel?
     private var canvases: [Int: PKCanvasView] = [:]
     private var processed: [Int: Int] = [:]
@@ -74,33 +74,20 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         installEraserTracking(on: canvas, active: tool == .eraser)
     }
 
-    /// PencilKit's eraser only touches ink; this follows it so plain marks under its path are erased too.
+    /// PencilKit's eraser only touches ink; this follows it so plain marks under its path are erased too. It rides
+    /// on the canvas's own drawing gesture: a gesture of ours beside it never saw the touches.
     private func installEraserTracking(on canvas: PKCanvasView, active: Bool) {
-        let existing = canvas.gestureRecognizers?.first { $0.name == "ginkgo.eraser" }
-        if !active { existing?.isEnabled = false; return }
-        #if !targetEnvironment(simulator)
-        let types: [UITouch.TouchType] = model?.fingersDraw == true ? [.pencil, .direct] : [.pencil]
-        existing?.allowedTouchTypes = types.map { NSNumber(value: $0.rawValue) }
-        #endif
-        if let existing { existing.isEnabled = true; return }
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(erasing(_:)))
-        pan.name = "ginkgo.eraser"
-        pan.delegate = self
-        pan.cancelsTouchesInView = false
-        #if !targetEnvironment(simulator)
-        let kinds: [UITouch.TouchType] = model?.fingersDraw == true ? [.pencil, .direct] : [.pencil]
-        pan.allowedTouchTypes = kinds.map { NSNumber(value: $0.rawValue) }
-        #endif
-        canvas.addGestureRecognizer(pan)
+        guard active, !tracked.contains(ObjectIdentifier(canvas)) else { return }
+        tracked.insert(ObjectIdentifier(canvas))
+        canvas.drawingGestureRecognizer.addTarget(self, action: #selector(erasing(_:)))
     }
 
-    @objc private func erasing(_ g: UIPanGestureRecognizer) {
-        guard let model, let pdfView = model.pdfView, let view = g.view else { return }
+    private var tracked: Set<ObjectIdentifier> = []
+
+    @objc private func erasing(_ g: UIGestureRecognizer) {
+        guard g.state == .began || g.state == .changed, let model, model.tool == .eraser,
+              let pdfView = model.pdfView, let view = g.view else { return }
         model.eraseMark(at: view.convert(g.location(in: view), to: pdfView))
-    }
-
-    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-        true
     }
 
     func saveAll() {
