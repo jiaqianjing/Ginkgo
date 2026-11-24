@@ -77,7 +77,7 @@ Ginkgo/
   - 阅读模式下批注几乎隐形；回顾模式下全部展开。
 - **撤销与重做**（2026-11-22 起，#4）：所有改动都登记到窗口的 `UndoManager`（`Reader/Undo.swift`），所以系统的三指手势和 ⌘Z 都能用；`ReaderPDFView` 做第一响应者，让它们找得到这个撤销管理器。删除时存一份 `AnnotationSnapshot`，撤销时按原来的 id 和 AI 回答恢复。页面画布（`PageCanvas`）不往窗口登记 PencilKit 自己的撤销，而是由 `PageInk` 在每次解释笔画之后登记一步，所以"一笔荧光笔变成高亮"撤销时是一步。
 - **草稿纸**（2026-11-22 起，#9）：`Reader/Scratch.swift`。每本书一张，存在 `Book.scratchData`（PKDrawing），写一笔存一笔。工具栏和 Pencil 捏合扇形里都有入口。宽窗口里放在书页右侧（`ReaderLayout.scratchBeside`，这时不显示侧边栏），窄窗口里浮在书页上、从工具栏下方开始；左边缘可拖宽。画布用工具栏当前的笔和颜色，没选工具时就是钢笔，手指设置同样适用；纸面向下无限延伸。草稿纸有自己的 `UndoManager`（`ReaderModel.scratchUndo`），打开时工具栏、⌘Z 和三指手势撤销的都是草稿，书里的改动照旧登记到书的撤销管理器；草稿纸收起时它的撤销历史随画布一起清掉。打开时关掉 iOS 26 的内容区返回手势，否则从左往右的一笔会退出阅读器。
-- **批注卡片**（#10、#11）：卡片左上角的颜色点是颜色菜单，长按卡片也能换颜色。回答完成后底部有「追问」，问答接在原回答下面，存在 `AnnotationRecord.threadData`；浮起的卡片只显示最新一轮，完整视图把更早的折叠成「前 N 轮」。外语翻译的词卡、重点表达和语法分析存在 `studyData`（`StudyNote`）。是否算外语由 `AISettings.isLearning` 用 NaturalLanguage 判断。请求统一走 `Reader/NoteAI.swift` 的 `perform`：每条批注同时只有一个请求，`ReaderModel.busy` 告诉卡片正在等什么。追问可以撤销，导出时一并带上。
+- **批注卡片**（#10、#11）：卡片左上角的颜色点是颜色菜单；右上角的 ⋯ 和长按卡片是同一份操作菜单（复制、追问、换颜色、重新回答、删除）。删除分两种：`ReaderModel.removeNote` 去掉批注、保留划线，`delete` 连划线一起删，都能撤销。橡皮不擦带批注的标记，只在页面底部提示去卡片里删（`ReaderModel.show(notice:)`）。回答完成后底部有「追问」，问答接在原回答下面，存在 `AnnotationRecord.threadData`；浮起的卡片只显示最新一轮，完整视图把更早的折叠成「前 N 轮」。外语翻译的词卡、重点表达和语法分析存在 `studyData`（`StudyNote`）。是否算外语由 `AISettings.isLearning` 用 NaturalLanguage 判断。请求统一走 `Reader/NoteAI.swift` 的 `perform`：每条批注同时只有一个请求，`ReaderModel.busy` 告诉卡片正在等什么。追问可以撤销，导出时一并带上。
 - **持久化**：
   - SwiftData：`Book`、`AnnotationRecord`、`Reply`。
   - 现在就按 CloudKit 的约束设计：所有属性可空或有默认值，不用唯一约束，关系都可选。等开通 iCloud 时直接打开同步，不用迁移数据。
