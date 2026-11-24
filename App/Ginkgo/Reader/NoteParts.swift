@@ -11,6 +11,12 @@ enum NoteParts {
         Rectangle().fill(Theme.rule).frame(height: Theme.hairline)
     }
 
+    /// A passage short enough for a link or chip.
+    static func excerpt(_ text: String, limit: Int = 18) -> String {
+        let flat = text.split(whereSeparator: \.isNewline).joined(separator: " ")
+        return flat.count <= limit ? flat : String(flat.prefix(limit)) + "…"
+    }
+
     static func heading(_ text: String) -> some View {
         Text(text).font(Theme.labelFont).foregroundStyle(Theme.secondaryInk)
     }

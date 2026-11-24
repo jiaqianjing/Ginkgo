@@ -242,3 +242,15 @@ struct LiveProviderTests {
         #expect(PromptBuilder.request(for: .translate, context: context).user.contains("关键词"))
     }
 }
+
+@Suite struct WordInSentenceTests {
+    @Test func theSentenceTranslationGoesIntoTheWordCard() {
+        let context = PassageContext(bookTitle: "B", passage: "hedge", readerLanguage: "简体中文")
+        let plain = PromptBuilder.wordCard(context: context, level: .intermediate)
+        #expect(!plain.user.contains("所在的句子"))
+        let inSentence = PromptBuilder.wordCard(context: context, level: .intermediate,
+                                                sentence: ("It hedges against catastrophe", "它防范灾难"))
+        #expect(inSentence.user.contains("It hedges against catastrophe") && inSentence.user.contains("它防范灾难"))
+        #expect(inSentence.system.contains("译文里的用法一致"))
+    }
+}

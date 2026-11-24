@@ -91,6 +91,8 @@ enum Theme {
     static let panelShade = Color.black.opacity(0.08)
     static let shadow = Color.black
     enum Mark {
+        /// How far an outer highlight's clip reaches past its lines, so only inner marks cut into it.
+        static let holeBleed: CGFloat = 8
         static let selectionOpacity = 0.28
         static let radius: CGFloat = 2
         static let underlineOpacity = 0.8
@@ -134,6 +136,8 @@ enum Theme {
         /// Quick colour swatches in a focused card's header.
         static let swatch: CGFloat = 14
         static let swatchHit: CGFloat = 24
+        /// Word chips under a sentence card.
+        static let chipOpacity = 0.55
         static let ruleRadius: CGFloat = 1
         static let ruleOpacity = 0.65
         static let focusOpacity = 0.35

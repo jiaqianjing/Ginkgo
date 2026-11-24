@@ -127,3 +127,31 @@ import Testing
         #expect(StrokeSnapping.lasso(points: margin, textLines: lines) == nil)
     }
 }
+
+@Suite struct PassageRelationTests {
+    func anchor(_ location: Int, _ length: Int, page: Int = 0) -> PDFAnchor {
+        PDFAnchor(pageIndex: page, rects: [], range: NSRange(location: location, length: length), quote: "")
+    }
+
+    @Test func aWordSitsInsideItsSentence() {
+        let sentence = anchor(10, 40), word = anchor(20, 5)
+        #expect(sentence.encloses(word))
+        #expect(!word.encloses(sentence))
+        #expect(!sentence.encloses(anchor(10, 40)))
+        #expect(sentence.sameText(as: anchor(10, 40)))
+    }
+
+    @Test func crossingPassagesOverlapWithoutNesting() {
+        let a = anchor(10, 20), b = anchor(25, 20)
+        #expect(a.overlaps(b) && !a.encloses(b) && !b.encloses(a))
+        #expect(a.union(with: b) == NSRange(location: 10, length: 35))
+        #expect(!a.overlaps(anchor(30, 5)))
+    }
+
+    @Test func otherPagesAndMissingRangesNeverRelate() {
+        let a = anchor(10, 20)
+        #expect(!a.overlaps(anchor(10, 20, page: 1)))
+        let noText = PDFAnchor(pageIndex: 0, rects: [], quote: "")
+        #expect(!a.overlaps(noText) && !a.encloses(noText) && !a.sameText(as: noText))
+    }
+}

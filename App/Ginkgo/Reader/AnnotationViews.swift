@@ -22,7 +22,18 @@ struct MarksLayer: View {
                 guard let g = model.geometry[record.id] else { continue }
                 let focused = model.focused == record.id
                 let opacity = focused ? Theme.markFocusOpacity : (model.mode == .reading ? Theme.markReadingOpacity : Theme.markReviewOpacity)
-                MarkPainter.paint(&ctx, lines: g.lines, style: record.style, color: record.color, opacity: opacity, focused: focused)
+                // A highlight inside this one keeps its own colour: its lines are cut out of this fill.
+                let holes = record.style == .highlight ? model.innerHighlights(of: record.id).flatMap { model.geometry[$0]?.lines ?? [] } : []
+                if holes.isEmpty {
+                    MarkPainter.paint(&ctx, lines: g.lines, style: record.style, color: record.color, opacity: opacity, focused: focused)
+                } else {
+                    ctx.drawLayer { layer in
+                        var mask = Path(g.union.insetBy(dx: -Theme.Mark.holeBleed, dy: -Theme.Mark.holeBleed))
+                        for hole in holes { mask.addRect(hole) }
+                        layer.clip(to: mask, style: FillStyle(eoFill: true))
+                        MarkPainter.paint(&layer, lines: g.lines, style: record.style, color: record.color, opacity: opacity, focused: focused)
+                    }
+                }
                 if record.style == .highlight, focused || (record.hasNote && model.isOpen(record.id)) {
                     for line in g.lines {
                         var p = Path()
@@ -125,6 +136,7 @@ struct NoteCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.rhythm) {
             header
+            parentLink
             if let data = record.inkData, let ink = try? PKDrawing(data: data) {
                 InkImage(drawing: ink, maxWidth: width - Theme.cardInset * 2)
                     .modifier(NoteInkAppearance())
@@ -138,6 +150,7 @@ struct NoteCard: View {
             }
             answer
             if record.replyState == .done { studyParts }
+            childLinks
             followUps
             footer
         }
@@ -180,6 +193,46 @@ struct NoteCard: View {
             Button("删除划线和批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
         } else {
             Button("删除批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
+        }
+    }
+
+    /// A word card names the sentence it was looked up in; a tap opens that sentence's card.
+    @ViewBuilder private var parentLink: some View {
+        if let parent = model.parentNote(of: record.id), let quote = parent.anchor?.quote {
+            Button { withAnimation(.smooth(duration: 0.25)) { model.reveal(parent.id) } } label: {
+                Label("在「\(NoteParts.excerpt(quote))」这句里", systemImage: "arrow.up.left")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(Theme.secondaryInk)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("打开这句话的批注")
+        }
+    }
+
+    /// A sentence card lists the words looked up inside it; a tap opens that word's card.
+    @ViewBuilder private var childLinks: some View {
+        let children = model.childNotes(of: record.id)
+        if !children.isEmpty {
+            VStack(alignment: .leading, spacing: Theme.Space.compact) {
+                NoteParts.heading("句中查过")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Space.compact) {
+                        ForEach(children, id: \.id) { child in
+                            Button { withAnimation(.smooth(duration: 0.25)) { model.reveal(child.id) } } label: {
+                                Text(NoteParts.excerpt(child.anchor?.quote ?? ""))
+                                    .font(Theme.captionFont)
+                                    .foregroundStyle(child.color.ink)
+                                    .padding(.horizontal, Theme.Space.small)
+                                    .padding(.vertical, Theme.Space.tiny)
+                                    .background(Capsule().fill(child.color.fill.opacity(Theme.Card.chipOpacity)))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("打开这个词的批注")
+                        }
+                    }
+                }
+            }
         }
     }
 

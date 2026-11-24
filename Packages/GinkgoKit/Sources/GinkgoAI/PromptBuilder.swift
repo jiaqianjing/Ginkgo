@@ -90,7 +90,9 @@ extension PromptBuilder {
     }
 
     /// A word or short phrase: a learner's dictionary card that reads the word in its context. Answers in JSON.
-    public static func wordCard(context: PassageContext, level: LearnerLevel) -> AIRequest {
+    /// `sentence` is the translated sentence the word was marked in, when there is one: the meaning should agree.
+    public static func wordCard(context: PassageContext, level: LearnerLevel,
+                                sentence: (text: String, translation: String)? = nil) -> AIRequest {
         let lang = context.readerLanguage
         let system = """
         你是一本懂上下文的学习词典。读者是母语为\(lang)的\(level.promptDescription)，正在读外语书，划出了一个词或短语。
@@ -105,9 +107,14 @@ extension PromptBuilder {
           "example": {"source": "上下文里含这个词的那句原文；没有上下文就给一句简短自然的例句", "target": "这句的\(lang)译文"},
           "note": "一条对这个水平的读者真正有用的提示（搭配、易混词、语体），用\(lang)；没有就空字符串"
         }
-        规则：senses 最多 4 条，最常见的在前；context_meaning 必须贴合上下文，不是只给最常见的义项。
+        规则：senses 最多 4 条，最常见的在前；context_meaning 必须贴合上下文，不是只给最常见的义项。\
+        \(sentence == nil ? "" : "读者已经有这个词所在句子的译文，context_meaning 要和那句译文里的用法一致。")
         """
-        return AIRequest(system: system, user: passageParts(context).joined(separator: "\n\n"), maxTokens: 1500)
+        var parts = passageParts(context)
+        if let sentence {
+            parts.append("这个词所在的句子：\n\(sentence.text)\n这句的译文：\n\(sentence.translation)")
+        }
+        return AIRequest(system: system, user: parts.joined(separator: "\n\n"), maxTokens: 1500)
     }
 
     /// The expressions in a translated sentence worth remembering, and whether a grammar walk-through would help.

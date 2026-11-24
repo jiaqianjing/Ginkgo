@@ -148,6 +148,23 @@ enum DebugLaunch {
             default: break
             }
         }
+        if state == "study" {
+            // Inside the first sentence: a word card on a rule, and a plain green highlight cut out of the yellow.
+            if let word = model.document.findString("catastrophe", withOptions: []).first,
+               let record = model.highlight(word, color: .yellow, style: .underline, merge: false) {
+                var card = WordCard()
+                card.term = "catastrophe"; card.phonetic = "/kəˈtæstrəfi/"
+                card.contextMeaning = "（足以毁掉物种的）大灾难"
+                card.senses = [WordCard.Sense(pos: "n.", meaning: "灾难，大祸")]
+                record.taskRaw = "translate"
+                record.study = StudyNote(word: card)
+                record.replyText = card.summary
+                record.replyState = .done
+            }
+            if let word = model.document.findString("hedges", withOptions: []).first {
+                model.highlight(word, color: .green, merge: false)
+            }
+        }
         model.reload()
         model.focused = nil
     }
