@@ -128,14 +128,7 @@ struct PDFKitView: UIViewRepresentable {
             guard let view = gesture.view as? PDFView else { return }
             let point = gesture.location(in: view)
             if let id = model.annotation(at: point) {
-                // A note opens or folds its card; a plain highlight shows or hides its menu.
-                withAnimation(.smooth(duration: 0.25)) {
-                    if model.annotation(id)?.hasNote == true {
-                        model.toggle(id)
-                    } else {
-                        model.focused = model.focused == id ? nil : id
-                    }
-                }
+                model.tapMark(id)
                 return
             }
             if model.selection != nil || view.currentSelection != nil {
@@ -166,7 +159,20 @@ struct PDFKitView: UIViewRepresentable {
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            if g is UITapGestureRecognizer, inkCanvasTakes(touch) {
+                return false  // the page canvas has it; a tap on a mark comes back from `PageInk.interpret`
+            }
             guard g === markGesture else { return true }
+            #if targetEnvironment(simulator)
+            return true
+            #else
+            return touch.type == .pencil || (model.fingersDraw && touch.type == .direct)
+            #endif
+        }
+
+        /// Whether the tool's PencilKit canvas is taking this touch (pen, lasso, eraser, freehand marker).
+        private func inkCanvasTakes(_ touch: UITouch) -> Bool {
+            guard model.tool != nil, !model.marksLive else { return false }
             #if targetEnvironment(simulator)
             return true
             #else
@@ -272,6 +278,29 @@ final class ReaderPDFView: PDFView {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         if window != nil { DispatchQueue.main.async { [weak self] in self?.becomeFirstResponder() } }
+        guardKeyboard(window != nil)
+    }
+
+    private var keyboardGuard: NSObjectProtocol?
+
+    /// PDFKit's page view is a text-input responder (for selecting text). When focus lands back on it, e.g. after
+    /// a card's menu closes, iPadOS raises the software keyboard though nothing here takes typing. Focus goes back
+    /// to the reader, which keeps ⌘Z and the undo gestures working, and the keyboard stays down.
+    private func guardKeyboard(_ on: Bool) {
+        if !on {
+            keyboardGuard.map(NotificationCenter.default.removeObserver)
+            keyboardGuard = nil
+            return
+        }
+        guard keyboardGuard == nil else { return }
+        keyboardGuard = NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil,
+                                                               queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let responder = UIResponder.firstResponder as? UIView, responder !== self,
+                      responder.isDescendant(of: self) else { return }
+                self.becomeFirstResponder()
+            }
+        }
     }
     private var savedTouchTypes: [ObjectIdentifier: [NSNumber]] = [:]
 
@@ -326,4 +355,17 @@ extension UIView {
         }
         return nil
     }
+}
+
+extension UIResponder {
+    nonisolated(unsafe) private static weak var found: UIResponder?
+
+    /// The window's current first responder, found by sending an action down the responder chain.
+    static var firstResponder: UIResponder? {
+        found = nil
+        UIApplication.shared.sendAction(#selector(captureFirstResponder), to: nil, from: nil, for: nil)
+        return found
+    }
+
+    @objc private func captureFirstResponder() { UIResponder.found = self }
 }

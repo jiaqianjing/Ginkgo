@@ -40,8 +40,8 @@ struct MarksLayer: View {
         }
         .blendMode(.multiply)
         .overlay {
-            // Pencil hover: where the current tool will land.
-            if let p = model.hoverPoint, let tool = model.tool {
+            // Pencil hover: where the current tool will land. The eraser has PencilKit's own preview.
+            if let p = model.hoverPoint, let tool = model.tool, tool != .eraser {
                 Circle()
                     .strokeBorder(hoverColor(tool), lineWidth: 1.5)
                     .frame(width: Theme.hoverRing, height: Theme.hoverRing)
@@ -158,17 +158,27 @@ struct NoteCard: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
         .onTapGesture { withAnimation(.smooth(duration: 0.2)) { model.focused = record.id } }
-        .contextMenu {
-            if let text = record.replyText {
-                Button("复制回答", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+        .contextMenu { noteActions }
+    }
+
+    /// The card's actions, behind both the ⋯ button and a long press.
+    @ViewBuilder private var noteActions: some View {
+        if let text = record.replyText {
+            Button("复制回答", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+        }
+        if canFollowUp {
+            Button("追问", systemImage: "arrow.turn.down.right") { model.asking = .followUp(record.id) }
+        }
+        Menu("换颜色", systemImage: "paintpalette") { colorChoices }
+        Button("重新回答", systemImage: "arrow.clockwise") { model.retry(record.id) }
+        Button("收起", systemImage: "chevron.up") { withAnimation { model.toggle(record.id) } }
+        Divider()
+        if record.kind == .highlight {
+            Button("删除批注，保留划线", systemImage: "text.badge.minus", role: .destructive) {
+                withAnimation { model.removeNote(record.id) }
             }
-            if canFollowUp {
-                Button("追问", systemImage: "arrow.turn.down.right") { model.asking = .followUp(record.id) }
-            }
-            Menu("换颜色", systemImage: "paintpalette") { colorChoices }
-            Button("重新回答", systemImage: "arrow.clockwise") { model.retry(record.id) }
-            Button("收起", systemImage: "chevron.up") { withAnimation { model.toggle(record.id) } }
-            Divider()
+            Button("删除划线和批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
+        } else {
             Button("删除批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
         }
     }
@@ -188,7 +198,52 @@ struct NoteCard: View {
                 .foregroundStyle(record.color.ink)
             Spacer(minLength: 0)
             if working { ThinkingDots(color: record.color.ink) }
+            if model.focused == record.id {
+                ViewThatFits(in: .horizontal) {
+                    quickActions
+                    EmptyView()
+                }
+                .transition(.opacity)
+            }
+            Menu { noteActions } label: {
+                Image(systemName: "ellipsis")
+                    .font(Theme.labelFont)
+                    .foregroundStyle(Theme.secondaryInk)
+                    .frame(width: Theme.Card.dotHit, height: Theme.Card.dotHit)
+                    .contentShape(Rectangle())
+            }
+            .padding(-Theme.Space.compact)
+            .accessibilityLabel("更多操作")
         }
+    }
+
+    /// On the card in focus: the colours and delete (card and mark together), one tap each. Keeping the mark
+    /// while dropping the note is in ⋯.
+    private var quickActions: some View {
+        HStack(spacing: 0) {
+            ForEach(HighlightColor.allCases, id: \.self) { color in
+                Button { withAnimation(.smooth(duration: 0.2)) { model.recolor(record.id, color) } } label: {
+                    Circle().fill(color.fill)
+                        .overlay { Circle().strokeBorder(color.ink.opacity(record.color == color ? Theme.Swatch.selectedOpacity : Theme.Swatch.idleOpacity),
+                                                         lineWidth: record.color == color ? Theme.Swatch.selectedBorder : Theme.Swatch.idleBorder) }
+                        .frame(width: Theme.Card.swatch, height: Theme.Card.swatch)
+                        .frame(width: Theme.Card.swatchHit, height: Theme.Card.dotHit)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("\(color.name)色")
+                .accessibilityAddTraits(record.color == color ? .isSelected : [])
+            }
+            Button(role: .destructive) { withAnimation { model.delete(record.id) } } label: {
+                Image(systemName: "trash")
+                    .font(Theme.labelFont)
+                    .foregroundStyle(Theme.error)
+                    .frame(width: Theme.Card.dotHit, height: Theme.Card.dotHit)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(record.kind == .highlight ? "删除划线和批注" : "删除批注")
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
     }
 
     @ViewBuilder private var colorChoices: some View {

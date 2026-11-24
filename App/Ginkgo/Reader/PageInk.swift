@@ -9,7 +9,7 @@ import Vision
 /// the page. New strokes are interpreted by the tool that drew them (told apart by ink type): highlighter and
 /// underline strokes snap to the text and become marks, a lasso selects text, and pen writing in the page margin
 /// becomes a handwritten question. Other pen strokes stay as ink.
-final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate, UIGestureRecognizerDelegate {
+final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate {
     weak var model: ReaderModel?
     private var canvases: [Int: PKCanvasView] = [:]
     private var processed: [Int: Int] = [:]
@@ -19,7 +19,20 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
     private var settled: [Int: PKDrawing] = [:]
 
     /// Re-reads the model's tool and colours onto every canvas.
-    func toolChanged() { canvases.values.forEach(configure) }
+    func toolChanged() {
+        flushPending()
+        canvases.values.forEach(configure)
+    }
+
+    /// Strokes still waiting for their pause are read now, so a new tool (the eraser above all) starts from settled
+    /// ink: otherwise the last word and what the eraser did to it would land as one undo step, uninterpreted.
+    func flushPending() {
+        for (index, work) in pending where !work.isCancelled {
+            work.cancel()
+            if let canvas = canvases[index] { interpret(canvas, page: index) }
+        }
+        pending.removeAll()
+    }
 
     // MARK: Overlay provider
 
@@ -67,40 +80,29 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         case .lasso?:
             canvas.tool = PKInkingTool(.pencil, color: UIColor(Theme.accent).withAlphaComponent(0.7), width: 2)
         case .eraser?:
-            canvas.tool = PKEraserTool(.vector)
+            canvas.tool = PKEraserTool(.bitmap)  // rubs out what it touches; its hover preview is a plain circle
         default:
             canvas.tool = PKInkingTool(.pen, color: UIColor(model?.inkColor.color ?? Theme.penGraphite), width: 2.2)
         }
         installEraserTracking(on: canvas, active: tool == .eraser)
     }
 
-    /// PencilKit's eraser only touches ink; this follows it so plain marks under its path are erased too.
+    /// PencilKit's eraser only touches ink; this follows it so plain marks under its path are erased too. It rides
+    /// on the canvas's own drawing gesture: a gesture of ours beside it never saw the touches.
     private func installEraserTracking(on canvas: PKCanvasView, active: Bool) {
-        let existing = canvas.gestureRecognizers?.first { $0.name == "ginkgo.eraser" }
-        if !active { existing?.isEnabled = false; return }
-        #if !targetEnvironment(simulator)
-        let types: [UITouch.TouchType] = model?.fingersDraw == true ? [.pencil, .direct] : [.pencil]
-        existing?.allowedTouchTypes = types.map { NSNumber(value: $0.rawValue) }
-        #endif
-        if let existing { existing.isEnabled = true; return }
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(erasing(_:)))
-        pan.name = "ginkgo.eraser"
-        pan.delegate = self
-        pan.cancelsTouchesInView = false
-        #if !targetEnvironment(simulator)
-        let kinds: [UITouch.TouchType] = model?.fingersDraw == true ? [.pencil, .direct] : [.pencil]
-        pan.allowedTouchTypes = kinds.map { NSNumber(value: $0.rawValue) }
-        #endif
-        canvas.addGestureRecognizer(pan)
+        guard active, !tracked.contains(ObjectIdentifier(canvas)) else { return }
+        tracked.insert(ObjectIdentifier(canvas))
+        canvas.drawingGestureRecognizer.addTarget(self, action: #selector(erasing(_:)))
     }
 
-    @objc private func erasing(_ g: UIPanGestureRecognizer) {
-        guard let model, let pdfView = model.pdfView, let view = g.view else { return }
+    private var tracked: Set<ObjectIdentifier> = []
+    /// Pages the eraser changed since they were last interpreted.
+    private var erased: Set<Int> = []
+
+    @objc private func erasing(_ g: UIGestureRecognizer) {
+        guard g.state == .began || g.state == .changed, let model, model.tool == .eraser,
+              let pdfView = model.pdfView, let view = g.view else { return }
         model.eraseMark(at: view.convert(g.location(in: view), to: pdfView))
-    }
-
-    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
-        true
     }
 
     func saveAll() {
@@ -118,9 +120,19 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
             self.interpret(canvas, page: index)
         }
         pending[index] = work
-        // Handwriting needs a pause to finish a word; marks and lassos can act almost at once.
-        let last = canvas.drawing.strokes.last.flatMap { PenTool(inkType: $0.ink.inkType) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (last == .pen ? 1.1 : 0.25), execute: work)
+        // The pixel eraser cuts strokes into pieces; those are ink as it was, not new strokes to interpret.
+        if model?.tool == .eraser {
+            erased.insert(index)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+            return
+        }
+        // Handwriting needs a pause to finish a word; marks, lassos and a tap on a mark can act almost at once.
+        let strokes = canvas.drawing.strokes
+        let last = strokes.last.flatMap { PenTool(inkType: $0.ink.inkType) }
+        // Only a tap on a mark is hurried: a lone dot elsewhere may start a word or a margin question.
+        let loneTap = strokes.count == (processed[index] ?? 0) + 1
+            && strokes.last.flatMap { markTapped(by: $0, on: canvas) } != nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + (last == .pen && !loneTap ? 1.1 : 0.25), execute: work)
     }
 
     private func interpret(_ canvas: PKCanvasView, page index: Int) {
@@ -129,8 +141,9 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         let start = min(processed[index] ?? 0, strokes.count)
         let fresh = Array(strokes[start...])
         let before = settled[index] ?? PKDrawing()
-        guard !fresh.isEmpty else {
-            // No new strokes: the eraser removed some.
+        let wasErased = erased.remove(index) != nil
+        guard !fresh.isEmpty, !wasErased else {
+            // The eraser removed strokes or cut them into pieces: keep the drawing as it is.
             processed[index] = strokes.count
             if !Self.same(canvas.drawing, before) {
                 settled[index] = canvas.drawing
@@ -152,7 +165,14 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
 
         var keep: [PKStroke] = Array(strokes[..<start])
         var penStrokes: [PKStroke] = []
+        var tappedMark: UUID?
         for stroke in fresh {
+            // A lone Pencil tap on a mark (pen, lasso or freehand marker in hand) means the mark, not a dot of
+            // ink. A dot among other strokes is writing (the dot of an i).
+            if fresh.count == 1, let id = markTapped(by: stroke, on: canvas) {
+                tappedMark = id
+                continue
+            }
             switch PenTool(inkType: stroke.ink.inkType) {
             case .highlighter? where model.highlighterFreehand:
                 keep.append(Self.straightenedIfHeld(stroke))
@@ -204,6 +224,7 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         applyingChange = true
         canvas.drawing = PKDrawing(strokes: keep)
         applyingChange = false
+        if let tappedMark { model.tapMark(tappedMark) }
         processed[index] = keep.count
         settled[index] = canvas.drawing
         model.saveInk(canvas.drawing, page: index)
@@ -211,6 +232,22 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
             model.registerInkChange(page: index, from: before, to: canvas.drawing)
         }
     }
+
+    /// A stroke too small to be writing: a tap of the tip.
+    private static func isTap(_ stroke: PKStroke) -> Bool {
+        stroke.renderBounds.width < tapSize && stroke.renderBounds.height < tapSize
+    }
+
+    /// The mark under a tap of the tip, if any.
+    private func markTapped(by stroke: PKStroke, on canvas: PKCanvasView) -> UUID? {
+        guard let model, let pdfView = model.pdfView, Self.isTap(stroke) else { return nil }
+        let bounds = stroke.renderBounds
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        return model.annotation(at: canvas.convert(center, to: pdfView))
+    }
+
+    /// Strokes smaller than this (in points, ink width included) are taps.
+    private static let tapSize: CGFloat = 8
 
     /// Freehand marker: holding the tip still at the end of a stroke (about half a second) straightens it, as in
     /// note apps. The straight stroke keeps the original ink and width.
@@ -449,3 +486,4 @@ struct InkImage: View {
             .frame(width: b.width * scale, height: b.height * scale)
     }
 }
+

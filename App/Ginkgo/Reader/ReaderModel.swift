@@ -79,6 +79,9 @@ final class ReaderModel {
     var expanded: UUID?
     var asking: AskTarget?
     var showSettings = false
+    /// Transient line at the bottom of the page (see `show(notice:)`).
+    var notice: String?
+    @ObservationIgnored private var noticeTask: Task<Void, Never>?
     var showNotes = false
     /// The scratch sheet beside the book. While it is open, undo and redo act on it.
     var showScratch = false {
@@ -182,10 +185,28 @@ final class ReaderModel {
         selectionFromPencil = true
     }
 
-    /// The eraser passed over a point: remove plain marks there (notes keep their answers; delete those from the card).
+    /// The eraser passed over a point: remove plain marks there. A mark with a note keeps its answer (the
+    /// eraser is too easy to sweep across a paid-for reply); the reader is told where to delete it instead.
     func eraseMark(at point: CGPoint) {
-        guard let id = annotation(at: point), let record = annotation(id), !record.hasNote, record.kind != .ink else { return }
+        guard let id = annotation(at: point), let record = annotation(id), record.kind != .ink else { return }
+        guard !record.hasNote else {
+            show(notice: "带批注的划线不会被擦掉，点开卡片用垃圾桶删除")
+            return
+        }
         withAnimation(.smooth(duration: 0.15)) { delete(id) }
+    }
+
+    /// A short line at the bottom of the page that fades on its own. Repeats while it shows are ignored.
+    func show(notice text: String) {
+        guard notice != text else { return }
+        withAnimation(.smooth(duration: 0.2)) { notice = text }
+        AccessibilityNotification.Announcement(text).post()
+        noticeTask?.cancel()
+        noticeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.smooth(duration: 0.3)) { self?.notice = nil }
+        }
     }
 
     init(book: Book, document: PDFDocument, context: ModelContext) {
@@ -280,6 +301,28 @@ final class ReaderModel {
         // The relationship array updates on save; drop the record locally right away.
         annotations.removeAll { $0.id == id }
         geometry[id] = nil
+    }
+
+    /// Takes the AI note off a mark and keeps the mark. Undo brings the note back as it was, without asking again.
+    func removeNote(_ id: UUID) {
+        guard let record = annotation(id), record.kind == .highlight, record.hasNote else { return }
+        cancelTask(id)
+        let before = AnnotationSnapshot(record)
+        registerUndo("删除批注") { $0.revert(to: before, name: "删除批注") }
+        record.taskRaw = nil
+        record.question = nil
+        record.replyText = nil
+        record.replyStateRaw = nil
+        record.replyError = nil
+        record.replyModel = nil
+        record.thread = []
+        record.study = StudyNote()
+        peeked.remove(id)
+        collapsed.remove(id)
+        if expanded == id { expanded = nil }
+        focused = nil
+        try? context.save()
+        reload()
     }
 
     /// Scrolls to an annotation and opens its note.
@@ -379,6 +422,18 @@ final class ReaderModel {
         selectionRect = pdfView.convert(selection.bounds(for: page), from: page)
         selectionLines = selection.selectionsByLine().filter { $0.pages.first == page }
             .map { pdfView.convert($0.bounds(for: page), from: page) }
+    }
+
+    /// A tap on a mark, by finger or Pencil: a note opens or folds its card; a plain mark shows or hides its
+    /// actions (colours, translate, explain, ask, delete).
+    func tapMark(_ id: UUID) {
+        withAnimation(.smooth(duration: 0.25)) {
+            if annotation(id)?.hasNote == true {
+                toggle(id)
+            } else {
+                focused = focused == id ? nil : id
+            }
+        }
     }
 
     /// The annotation under a point in reader coordinates, if any.
