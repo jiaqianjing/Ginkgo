@@ -105,6 +105,32 @@ import UIKit
         #expect(resolved.count == 4)
     }
 
+    @Test func removingANoteKeepsTheMarkAndUndoBringsItBack() throws {
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        defer { Library.delete(book, from: context) }
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        let sel = try #require(doc.findString("living fossil", withOptions: []).first)
+        let record = AnnotationRecord(kind: .highlight, anchor: try #require(ReaderModel.anchor(for: sel, in: doc)))
+        record.book = book
+        record.taskRaw = "translate"
+        record.replyText = "活化石"
+        record.replyState = .done
+        record.thread = [FollowUp(question: "为什么？", answer: "因为……")]
+        context.insert(record)
+        try context.save()
+        let model = ReaderModel(book: book, document: doc, context: context)
+        let before = AnnotationSnapshot(record)
+
+        model.removeNote(record.id)
+        let kept = try #require(model.annotation(record.id))
+        #expect(!kept.hasNote && kept.replyText == nil && kept.thread.isEmpty)
+        #expect(kept.color == record.color)
+
+        model.revert(to: before)
+        let back = try #require(model.annotation(record.id))
+        #expect(back.hasNote && back.replyText == "活化石" && back.thread.count == 1)
+    }
+
     @Test func clearingCountsAndRemovesEveryAnnotation() throws {
         let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
         let doc = try #require(PDFDocument(url: book.fileURL))

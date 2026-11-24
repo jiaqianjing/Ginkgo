@@ -158,17 +158,27 @@ struct NoteCard: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
         .onTapGesture { withAnimation(.smooth(duration: 0.2)) { model.focused = record.id } }
-        .contextMenu {
-            if let text = record.replyText {
-                Button("复制回答", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+        .contextMenu { noteActions }
+    }
+
+    /// The card's actions, behind both the ⋯ button and a long press.
+    @ViewBuilder private var noteActions: some View {
+        if let text = record.replyText {
+            Button("复制回答", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+        }
+        if canFollowUp {
+            Button("追问", systemImage: "arrow.turn.down.right") { model.asking = .followUp(record.id) }
+        }
+        Menu("换颜色", systemImage: "paintpalette") { colorChoices }
+        Button("重新回答", systemImage: "arrow.clockwise") { model.retry(record.id) }
+        Button("收起", systemImage: "chevron.up") { withAnimation { model.toggle(record.id) } }
+        Divider()
+        if record.kind == .highlight {
+            Button("删除批注，保留划线", systemImage: "text.badge.minus", role: .destructive) {
+                withAnimation { model.removeNote(record.id) }
             }
-            if canFollowUp {
-                Button("追问", systemImage: "arrow.turn.down.right") { model.asking = .followUp(record.id) }
-            }
-            Menu("换颜色", systemImage: "paintpalette") { colorChoices }
-            Button("重新回答", systemImage: "arrow.clockwise") { model.retry(record.id) }
-            Button("收起", systemImage: "chevron.up") { withAnimation { model.toggle(record.id) } }
-            Divider()
+            Button("删除划线和批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
+        } else {
             Button("删除批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
         }
     }
@@ -188,6 +198,15 @@ struct NoteCard: View {
                 .foregroundStyle(record.color.ink)
             Spacer(minLength: 0)
             if working { ThinkingDots(color: record.color.ink) }
+            Menu { noteActions } label: {
+                Image(systemName: "ellipsis")
+                    .font(Theme.labelFont)
+                    .foregroundStyle(Theme.secondaryInk)
+                    .frame(width: Theme.Card.dotHit, height: Theme.Card.dotHit)
+                    .contentShape(Rectangle())
+            }
+            .padding(-Theme.Space.compact)
+            .accessibilityLabel("更多操作")
         }
     }
 

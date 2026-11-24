@@ -66,6 +66,13 @@ private struct ReaderContent: View {
                         .transition(.opacity)
                 }
 
+                if let notice = model.notice {
+                    NoticeLine(text: notice)
+                        .position(x: layout.pageWidth / 2, y: geo.size.height - geo.safeAreaInsets.bottom - 76)
+                        .allowsHitTesting(false)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+
                 Group {
                     if layout.hasMarginColumn {
                         ConnectorLayer(model: model, layout: layout).allowsHitTesting(false)
@@ -182,6 +189,21 @@ private struct MarginBackground: View {
             .overlay(alignment: .leading) {
                 Rectangle().fill(Theme.rule).frame(width: Theme.hairline)
             }
+    }
+}
+
+/// A passing remark at the bottom of the page, e.g. why the eraser left a mark alone.
+private struct NoticeLine: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(Theme.footnoteFont)
+            .foregroundStyle(.primary)
+            .padding(.horizontal, Theme.Space.generous)
+            .padding(.vertical, Theme.folioVerticalInset)
+            .glassEffect(.regular.tint(Theme.glassTint), in: .capsule)
+            .accessibilityAddTraits(.updatesFrequently)
     }
 }
 
