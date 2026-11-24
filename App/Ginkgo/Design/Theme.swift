@@ -134,6 +134,8 @@ enum Theme {
         /// Quick colour swatches in a focused card's header.
         static let swatch: CGFloat = 14
         static let swatchHit: CGFloat = 24
+        /// Word chips under a sentence card.
+        static let chipOpacity = 0.55
         static let ruleRadius: CGFloat = 1
         static let ruleOpacity = 0.65
         static let focusOpacity = 0.35
@@ -189,6 +191,10 @@ enum Theme {
         static let bottomInset: CGFloat = 0.04
         static let overhang: CGFloat = 0.12
         static let roundness: CGFloat = 0.38
+        /// Space between an outer highlight's stroke and an inner highlight inside it.
+        static let joinGap: CGFloat = 1.5
+        /// Outer stroke pieces narrower than this are left out rather than drawn as slivers.
+        static let minPiece: CGFloat = 3
     }
     static let hoverRing: CGFloat = 10
 

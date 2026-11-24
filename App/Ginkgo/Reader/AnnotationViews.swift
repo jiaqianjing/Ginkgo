@@ -22,7 +22,13 @@ struct MarksLayer: View {
                 guard let g = model.geometry[record.id] else { continue }
                 let focused = model.focused == record.id
                 let opacity = focused ? Theme.markFocusOpacity : (model.mode == .reading ? Theme.markReadingOpacity : Theme.markReviewOpacity)
-                MarkPainter.paint(&ctx, lines: g.lines, style: record.style, color: record.color, opacity: opacity, focused: focused)
+                // A highlight inside this one keeps its own colour: this one is drawn as separate strokes around it.
+                let holes = record.style == .highlight ? model.innerHighlights(of: record.id).flatMap { model.geometry[$0]?.lines ?? [] } : []
+                // A rule inside a highlight skips its focus wash, which would double the colour under the word.
+                let insideHighlight = record.style != .highlight
+                    && model.passages[record.id].flatMap { model.enclosingMark(of: $0, style: .highlight) } != nil
+                MarkPainter.paint(&ctx, lines: MarkPainter.segments(of: g.lines, around: holes), style: record.style,
+                                  color: record.color, opacity: opacity, focused: focused && !insideHighlight)
                 if record.style == .highlight, focused || (record.hasNote && model.isOpen(record.id)) {
                     for line in g.lines {
                         var p = Path()
@@ -62,6 +68,27 @@ struct MarksLayer: View {
 /// How marks look on the page, sized from the line height so they scale with zoom. A highlight is a marker pass:
 /// a soft band over the x-height with rounded ends. Rules sit on the baseline, not at the bottom of the line box.
 enum MarkPainter {
+    /// An outer highlight's lines split around the inner highlights on them, so the outer stroke stops just short
+    /// of each inner one, rounded like any marker end, instead of the two overlapping at the join.
+    static func segments(of lines: [CGRect], around holes: [CGRect]) -> [CGRect] {
+        guard !holes.isEmpty else { return lines }
+        return lines.flatMap { line -> [CGRect] in
+            let h = line.height
+            // Room for both strokes' overhang at the join, plus a hairline gap.
+            let clearance = h * Theme.Marker.overhang * 2 + Theme.Marker.joinGap
+            let onLine = holes.filter { $0.intersection(line).height > min($0.height, h) / 2 }.sorted { $0.minX < $1.minX }
+            var pieces: [CGRect] = []
+            var start = line.minX
+            for hole in onLine {
+                let end = hole.minX - clearance
+                if end - start > Theme.Marker.minPiece { pieces.append(CGRect(x: start, y: line.minY, width: end - start, height: h)) }
+                start = max(start, hole.maxX + clearance)
+            }
+            if line.maxX - start > Theme.Marker.minPiece { pieces.append(CGRect(x: start, y: line.minY, width: line.maxX - start, height: h)) }
+            return pieces
+        }
+    }
+
     static func paint(_ ctx: inout GraphicsContext, lines: [CGRect], style: MarkStyle, color: HighlightColor,
                       opacity: Double, focused: Bool) {
         for line in lines {
@@ -125,6 +152,7 @@ struct NoteCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.rhythm) {
             header
+            parentLink
             if let data = record.inkData, let ink = try? PKDrawing(data: data) {
                 InkImage(drawing: ink, maxWidth: width - Theme.cardInset * 2)
                     .modifier(NoteInkAppearance())
@@ -138,6 +166,7 @@ struct NoteCard: View {
             }
             answer
             if record.replyState == .done { studyParts }
+            childLinks
             followUps
             footer
         }
@@ -180,6 +209,46 @@ struct NoteCard: View {
             Button("删除划线和批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
         } else {
             Button("删除批注", systemImage: "trash", role: .destructive) { withAnimation { model.delete(record.id) } }
+        }
+    }
+
+    /// A word card names the sentence it was looked up in; a tap opens that sentence's card.
+    @ViewBuilder private var parentLink: some View {
+        if let parent = model.parentNote(of: record.id), let quote = parent.anchor?.quote {
+            Button { withAnimation(.smooth(duration: 0.25)) { model.reveal(parent.id) } } label: {
+                Label("在「\(NoteParts.excerpt(quote))」这句里", systemImage: "arrow.up.left")
+                    .font(Theme.captionFont)
+                    .foregroundStyle(Theme.secondaryInk)
+                    .lineLimit(1)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("打开这句话的批注")
+        }
+    }
+
+    /// A sentence card lists the words looked up inside it; a tap opens that word's card.
+    @ViewBuilder private var childLinks: some View {
+        let children = model.childNotes(of: record.id)
+        if !children.isEmpty {
+            VStack(alignment: .leading, spacing: Theme.Space.compact) {
+                NoteParts.heading("句中查过")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.Space.compact) {
+                        ForEach(children, id: \.id) { child in
+                            Button { withAnimation(.smooth(duration: 0.25)) { model.reveal(child.id) } } label: {
+                                Text(NoteParts.excerpt(child.anchor?.quote ?? ""))
+                                    .font(Theme.captionFont)
+                                    .foregroundStyle(child.color.ink)
+                                    .padding(.horizontal, Theme.Space.small)
+                                    .padding(.vertical, Theme.Space.tiny)
+                                    .background(Capsule().fill(child.color.fill.opacity(Theme.Card.chipOpacity)))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("打开这个词的批注")
+                        }
+                    }
+                }
+            }
         }
     }
 

@@ -216,3 +216,111 @@ import UIKit
         #expect(FingerInput.system.fingersDraw == !UIPencilInteraction.prefersPencilOnlyDrawing)
     }
 }
+
+@MainActor struct NestingTests {
+    let context = ModelContext(try! ModelContainer(for: Persistence.schema,
+                                                   configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+
+    func setUp() throws -> (Book, PDFDocument, ReaderModel) {
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        return (book, doc, ReaderModel(book: book, document: doc, context: context))
+    }
+
+    func find(_ text: String, in doc: PDFDocument) throws -> PDFSelection {
+        try #require(doc.findString(text, withOptions: []).first)
+    }
+
+    @Test func theSameWordsKeepOneMark() throws {
+        let (book, doc, model) = try setUp()
+        defer { Library.delete(book, from: context) }
+        let first = try #require(model.highlight(try find("living fossil", in: doc), color: .yellow))
+        let again = try #require(model.highlight(try find("living fossil", in: doc), color: .green))
+        #expect(again.id == first.id && again.color == .green)
+        #expect(model.annotations.count == 1)
+    }
+
+    @Test func overlappingPlainMarksOfOneColourMerge() throws {
+        let (book, doc, model) = try setUp()
+        defer { Library.delete(book, from: context) }
+        model.highlight(try find("often called a living", in: doc), color: .yellow)
+        let merged = try #require(model.highlight(try find("a living fossil", in: doc), color: .yellow))
+        #expect(model.annotations.count == 1)
+        #expect(merged.anchor?.quote.contains("often called a living fossil") == true)
+        // Another colour stays apart.
+        model.highlight(try find("fossil. Its lineage", in: doc), color: .blue)
+        #expect(model.annotations.count == 2)
+    }
+
+    @Test func marksWithNotesNeverMerge() throws {
+        let (book, doc, model) = try setUp()
+        defer { Library.delete(book, from: context) }
+        let noted = try #require(model.highlight(try find("often called a living", in: doc), color: .yellow))
+        noted.taskRaw = "explain"
+        noted.replyText = "…"
+        model.highlight(try find("a living fossil", in: doc), color: .yellow)
+        #expect(model.annotations.count == 2)
+    }
+
+    @Test func aWordInsideASentenceIsRuledAndLinked() throws {
+        let (book, doc, model) = try setUp()
+        defer { Library.delete(book, from: context) }
+        let sentence = try #require(model.highlight(try find("It hedges against catastrophe", in: doc), color: .yellow, merge: false))
+        sentence.taskRaw = "translate"
+        sentence.replyText = "它防范灾难"
+        sentence.replyState = .done
+        model.run(.translate, on: try find("hedges", in: doc))
+        let word = try #require(model.annotations.first { $0.anchor?.quote == "hedges" })
+        #expect(word.style == .underline)
+        #expect(model.parentNote(of: word.id)?.id == sentence.id)
+        #expect(model.childNotes(of: sentence.id).map(\.id) == [word.id])
+        #expect(model.innerHighlights(of: sentence.id).isEmpty)  // a rule, not a highlight: nothing to cut out
+        model.cancelTask(word.id)
+    }
+
+    @Test func askingAboutTheSameWordsAgainFollowsUp() throws {
+        let (book, doc, model) = try setUp()
+        defer { Library.delete(book, from: context) }
+        let mark = try #require(model.highlight(try find("living fossil", in: doc), color: .yellow, merge: false))
+        mark.taskRaw = "translate"
+        mark.replyText = "活化石"
+        mark.replyState = .done
+        model.run(.explain, on: try find("living fossil", in: doc))
+        #expect(model.annotations.count == 1)
+        #expect(mark.thread.first?.question == "解释一下这段。")
+        model.cancelTask(mark.id)
+    }
+}
+
+struct MarkSegmentTests {
+    @Test func anOuterLineSplitsAroundAnInnerHighlight() {
+        let line = CGRect(x: 0, y: 0, width: 300, height: 20)
+        let hole = CGRect(x: 100, y: 0, width: 50, height: 20)
+        let pieces = MarkPainter.segments(of: [line], around: [hole])
+        #expect(pieces.count == 2)
+        #expect(pieces[0].minX == 0 && pieces[0].maxX < hole.minX)
+        #expect(pieces[1].minX > hole.maxX && pieces[1].maxX == 300)
+    }
+
+    @Test func holesOnOtherLinesAndEdgeSliversAreIgnored() {
+        let line = CGRect(x: 0, y: 0, width: 300, height: 20)
+        #expect(MarkPainter.segments(of: [line], around: [CGRect(x: 100, y: 40, width: 50, height: 20)]) == [line])
+        // A hole at the very start leaves no sliver before it.
+        let pieces = MarkPainter.segments(of: [line], around: [CGRect(x: 0, y: 0, width: 60, height: 20)])
+        #expect(pieces.count == 1 && pieces[0].minX > 60)
+    }
+}
+
+@MainActor struct OneCardTests {
+    @Test func openingANoteClosesTheOneBefore() throws {
+        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        defer { Library.delete(book, from: context) }
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        let model = ReaderModel(book: book, document: doc, context: context)
+        let a = UUID(), b = UUID()
+        model.peeked.insert(a)
+        model.peeked.insert(b)
+        #expect(model.peeked == [b])
+    }
+}

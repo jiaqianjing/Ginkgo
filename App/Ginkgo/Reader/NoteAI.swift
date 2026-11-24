@@ -11,12 +11,6 @@ enum NoteActivity {
 /// AI requests behind the margin notes: the first answer, then follow-up questions, and for a language the
 /// reader is learning, a word card or the key expressions and an optional grammar walk-through.
 extension ReaderModel {
-    /// Runs an AI task on the selection, creating a highlight to hang the note on.
-    func run(_ task: AITask, on selection: PDFSelection, color: HighlightColor = .yellow) {
-        guard let record = highlight(selection, color: color) else { return }
-        run(task, on: record.id)
-    }
-
     /// Runs (or re-runs) an AI task on an existing annotation; the answer streams into its card.
     func run(_ task: AITask, on id: UUID) {
         guard let record = annotation(id), let anchor = record.anchor else { return }
@@ -42,8 +36,15 @@ extension ReaderModel {
         let level = settings.learnerLevel
 
         if learning, PassageShape.isLookup(anchor.quote) {
+            // A word looked up inside a translated sentence: the card should read it the way that translation does.
+            let sentence = parentNote(of: id).flatMap { parent -> (text: String, translation: String)? in
+                guard parent.taskRaw == AITask.translate.tag, let quote = parent.anchor?.quote,
+                      let translation = parent.replyText, !translation.isEmpty else { return nil }
+                return (quote, translation)
+            }
             perform(id, .answer) { client in
-                let card = try StudyJSON.decode(WordCard.self, from: try await client.collect(PromptBuilder.wordCard(context: context, level: level)))
+                let request = PromptBuilder.wordCard(context: context, level: level, sentence: sentence)
+                let card = try StudyJSON.decode(WordCard.self, from: try await client.collect(request))
                 record.study = StudyNote(word: card)
                 record.replyText = card.summary
                 record.replyState = .done

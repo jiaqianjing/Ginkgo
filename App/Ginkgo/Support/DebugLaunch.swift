@@ -48,8 +48,8 @@ enum DebugLaunch {
             }
             model.focused = nil
         }
-        // `-demoPeek YES` opens every note's floating card; `-demoExpand YES` opens the first note in full.
-        if d.bool(forKey: "demoPeek") { model.peeked = Set(model.notes.map(\.id)) }
+        // `-demoPeek YES` opens the first note's floating card (reading shows one at a time); `-demoExpand YES` opens the first note in full.
+        if d.bool(forKey: "demoPeek"), let first = model.notes.first { model.peeked = [first.id] }
         if d.bool(forKey: "demoExpand"), let first = model.notes.first { model.expand(first.id) }
         // `-demoTool <name>` picks a Pencil tool; `-demoPalette YES` opens the squeeze palette.
         if let raw = d.string(forKey: "demoTool") { model.tool = PenTool(rawValue: raw) }
@@ -146,6 +146,23 @@ enum DebugLaunch {
                 record.inkData = PKDrawing(strokes: [stroke]).dataRepresentation()
                 record.taskRaw = "ask"
             default: break
+            }
+        }
+        if state == "study" {
+            // Inside the first sentence: a word card on a rule, and a plain green highlight cut out of the yellow.
+            if let word = model.document.findString("catastrophe", withOptions: []).first,
+               let record = model.highlight(word, color: .yellow, style: .underline, merge: false) {
+                var card = WordCard()
+                card.term = "catastrophe"; card.phonetic = "/kəˈtæstrəfi/"
+                card.contextMeaning = "（足以毁掉物种的）大灾难"
+                card.senses = [WordCard.Sense(pos: "n.", meaning: "灾难，大祸")]
+                record.taskRaw = "translate"
+                record.study = StudyNote(word: card)
+                record.replyText = card.summary
+                record.replyState = .done
+            }
+            if let word = model.document.findString("hedges", withOptions: []).first {
+                model.highlight(word, color: .green, merge: false)
             }
         }
         model.reload()

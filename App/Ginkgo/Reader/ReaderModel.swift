@@ -59,6 +59,8 @@ final class ReaderModel {
     @ObservationIgnored let pageInk = PageInk()
 
     private(set) var annotations: [AnnotationRecord] = []
+    /// Each annotation's passage, decoded once per reload (see Nesting.swift).
+    private(set) var passages: [UUID: PDFAnchor] = [:]
     var mode: ViewMode = .reading
     var chromeVisible = true
 
@@ -72,8 +74,17 @@ final class ReaderModel {
     private(set) var selectionLines: [CGRect] = []
     /// The annotation whose menu is showing (tapped highlight) or whose card is active.
     var focused: UUID?
-    /// Notes opened in reading mode, or folded away in review mode.
-    var peeked: Set<UUID> = []
+    /// Notes opened in reading mode, or folded away in review mode. Reading shows one floating card at a time:
+    /// opening a note closes the one before, so cards never pile up over each other or the page.
+    var peeked: Set<UUID> = [] {
+        didSet {
+            let opened = peeked.subtracting(oldValue)
+            if let newest = opened.first, peeked.count > 1 {
+                peeked = [newest]
+                if let expanded, expanded != newest { self.expanded = nil }
+            }
+        }
+    }
     var collapsed: Set<UUID> = []
     /// A note too long for its floating card, shown in full in the side column (or side panel in narrow windows).
     var expanded: UUID?
@@ -224,6 +235,10 @@ final class ReaderModel {
             guard let a = $0.anchor, let b = $1.anchor else { return $0.createdAt < $1.createdAt }
             return a.readingOrder < b.readingOrder
         }
+        passages = Dictionary(uniqueKeysWithValues: annotations.compactMap { record in
+            guard case .pdf(let a)? = record.anchor else { return nil }
+            return (record.id, a)
+        })
         recompute()
     }
 
@@ -265,9 +280,23 @@ final class ReaderModel {
         return true
     }
 
+    /// Marks the selection. The same words in the same style keep their one mark (recoloured if needed), and with
+    /// `merge` plain marks of this colour and style that it overlaps join it.
     @discardableResult
-    func highlight(_ selection: PDFSelection, color: HighlightColor, style: MarkStyle = .highlight) -> AnnotationRecord? {
+    func highlight(_ selection: PDFSelection, color: HighlightColor, style: MarkStyle = .highlight,
+                   merge: Bool = true) -> AnnotationRecord? {
         guard let anchor = Self.anchor(for: selection, in: document) else { return nil }
+        if case .pdf(let passage) = anchor {
+            if let same = mark(sameTextAs: passage, style: style) {
+                if same.color != color { recolor(same.id, color) }
+                if selection === self.selection { clearSelection() }
+                return same
+            }
+            if merge, let merged = mergePlainMarks(with: passage, color: color, style: style) {
+                if selection === self.selection { clearSelection() }
+                return merged
+            }
+        }
         let record = AnnotationRecord(kind: .highlight, anchor: anchor, color: color)
         if style != .highlight { record.styleRaw = style.rawValue }
         record.book = book
@@ -366,7 +395,7 @@ final class ReaderModel {
 
     /// A question written by hand beside a line: keep the ink on the card and ask about the line.
     func addHandwrittenQuestion(_ ink: PKDrawing, recognized: String, on line: PDFSelection) {
-        guard let record = highlight(line, color: .blue) else { return }
+        guard let record = highlight(line, color: .blue, merge: false) else { return }
         record.inkData = ink.dataRepresentation()
         let text = recognized.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty {
@@ -437,11 +466,11 @@ final class ReaderModel {
     }
 
     /// The annotation under a point in reader coordinates, if any.
+    /// Where marks overlap, the innermost (shortest passage) wins: a word inside its sentence.
     func annotation(at point: CGPoint) -> UUID? {
-        for (id, g) in geometry where g.lines.contains(where: { $0.insetBy(dx: -4, dy: -4).contains(point) }) {
-            return id
-        }
-        return nil
+        geometry.filter { $0.value.lines.contains { $0.insetBy(dx: -4, dy: -4).contains(point) } }
+            .map(\.key)
+            .min { passageLength($0) < passageLength($1) }
     }
 
     // MARK: - Helpers

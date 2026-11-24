@@ -45,6 +45,40 @@ public struct PDFAnchor: Codable, Hashable, Sendable {
     public var bounds: CGRect { rects.reduce(CGRect.null) { $0.union($1) } }
 }
 
+// MARK: - How two passages relate
+
+extension PDFAnchor {
+    /// Both on one page with a known text range: the only case where passages can be compared.
+    private func ranges(with other: PDFAnchor) -> (NSRange, NSRange)? {
+        guard pageIndex == other.pageIndex, let a = range, let b = other.range, a.length > 0, b.length > 0 else { return nil }
+        return (a, b)
+    }
+
+    /// The same characters on the same page.
+    public func sameText(as other: PDFAnchor) -> Bool {
+        guard let (a, b) = ranges(with: other) else { return false }
+        return NSEqualRanges(a, b)
+    }
+
+    /// The other passage lies inside this one and is shorter: a word in its sentence.
+    public func encloses(_ other: PDFAnchor) -> Bool {
+        guard let (a, b) = ranges(with: other), !NSEqualRanges(a, b) else { return false }
+        return a.location <= b.location && NSMaxRange(b) <= NSMaxRange(a)
+    }
+
+    /// The passages share at least one character.
+    public func overlaps(_ other: PDFAnchor) -> Bool {
+        guard let (a, b) = ranges(with: other) else { return false }
+        return NSIntersectionRange(a, b).length > 0
+    }
+
+    /// The smallest range covering both, when they are on the same page.
+    public func union(with other: PDFAnchor) -> NSRange? {
+        guard let (a, b) = ranges(with: other) else { return nil }
+        return NSUnionRange(a, b)
+    }
+}
+
 public struct ReadingOrder: Comparable, Sendable {
     public var page: Int
     public var offset: Int
