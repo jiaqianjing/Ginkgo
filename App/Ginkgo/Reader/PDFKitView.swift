@@ -128,14 +128,7 @@ struct PDFKitView: UIViewRepresentable {
             guard let view = gesture.view as? PDFView else { return }
             let point = gesture.location(in: view)
             if let id = model.annotation(at: point) {
-                // A note opens or folds its card; a plain highlight shows or hides its menu.
-                withAnimation(.smooth(duration: 0.25)) {
-                    if model.annotation(id)?.hasNote == true {
-                        model.toggle(id)
-                    } else {
-                        model.focused = model.focused == id ? nil : id
-                    }
-                }
+                model.tapMark(id)
                 return
             }
             if model.selection != nil || view.currentSelection != nil {
@@ -166,7 +159,20 @@ struct PDFKitView: UIViewRepresentable {
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            if g is UITapGestureRecognizer, inkCanvasTakes(touch) {
+                return false  // the page canvas has it; a tap on a mark comes back from `PageInk.interpret`
+            }
             guard g === markGesture else { return true }
+            #if targetEnvironment(simulator)
+            return true
+            #else
+            return touch.type == .pencil || (model.fingersDraw && touch.type == .direct)
+            #endif
+        }
+
+        /// Whether the tool's PencilKit canvas is taking this touch (pen, lasso, eraser, freehand marker).
+        private func inkCanvasTakes(_ touch: UITouch) -> Bool {
+            guard model.tool != nil, !model.marksLive else { return false }
             #if targetEnvironment(simulator)
             return true
             #else

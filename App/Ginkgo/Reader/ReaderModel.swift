@@ -190,7 +190,7 @@ final class ReaderModel {
     func eraseMark(at point: CGPoint) {
         guard let id = annotation(at: point), let record = annotation(id), record.kind != .ink else { return }
         guard !record.hasNote else {
-            show(notice: "带批注的标记要在卡片的 ⋯ 菜单里删除")
+            show(notice: "带批注的划线不会被擦掉，点开卡片用垃圾桶删除")
             return
         }
         withAnimation(.smooth(duration: 0.15)) { delete(id) }
@@ -422,6 +422,18 @@ final class ReaderModel {
         selectionRect = pdfView.convert(selection.bounds(for: page), from: page)
         selectionLines = selection.selectionsByLine().filter { $0.pages.first == page }
             .map { pdfView.convert($0.bounds(for: page), from: page) }
+    }
+
+    /// A tap on a mark, by finger or Pencil: a note opens or folds its card; a plain mark shows or hides its
+    /// actions (colours, translate, explain, ask, delete).
+    func tapMark(_ id: UUID) {
+        withAnimation(.smooth(duration: 0.25)) {
+            if annotation(id)?.hasNote == true {
+                toggle(id)
+            } else {
+                focused = focused == id ? nil : id
+            }
+        }
     }
 
     /// The annotation under a point in reader coordinates, if any.

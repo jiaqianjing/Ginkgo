@@ -118,9 +118,13 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
             self.interpret(canvas, page: index)
         }
         pending[index] = work
-        // Handwriting needs a pause to finish a word; marks and lassos can act almost at once.
-        let last = canvas.drawing.strokes.last.flatMap { PenTool(inkType: $0.ink.inkType) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (last == .pen ? 1.1 : 0.25), execute: work)
+        // Handwriting needs a pause to finish a word; marks, lassos and a tap on a mark can act almost at once.
+        let strokes = canvas.drawing.strokes
+        let last = strokes.last.flatMap { PenTool(inkType: $0.ink.inkType) }
+        // Only a tap on a mark is hurried: a lone dot elsewhere may start a word or a margin question.
+        let loneTap = strokes.count == (processed[index] ?? 0) + 1
+            && strokes.last.flatMap { markTapped(by: $0, on: canvas) } != nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + (last == .pen && !loneTap ? 1.1 : 0.25), execute: work)
     }
 
     private func interpret(_ canvas: PKCanvasView, page index: Int) {
@@ -152,7 +156,14 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
 
         var keep: [PKStroke] = Array(strokes[..<start])
         var penStrokes: [PKStroke] = []
+        var tappedMark: UUID?
         for stroke in fresh {
+            // A lone Pencil tap on a mark (pen, lasso or freehand marker in hand) means the mark, not a dot of
+            // ink. A dot among other strokes is writing (the dot of an i).
+            if fresh.count == 1, let id = markTapped(by: stroke, on: canvas) {
+                tappedMark = id
+                continue
+            }
             switch PenTool(inkType: stroke.ink.inkType) {
             case .highlighter? where model.highlighterFreehand:
                 keep.append(Self.straightenedIfHeld(stroke))
@@ -204,6 +215,7 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
         applyingChange = true
         canvas.drawing = PKDrawing(strokes: keep)
         applyingChange = false
+        if let tappedMark { model.tapMark(tappedMark) }
         processed[index] = keep.count
         settled[index] = canvas.drawing
         model.saveInk(canvas.drawing, page: index)
@@ -211,6 +223,22 @@ final class PageInk: NSObject, PDFPageOverlayViewProvider, PKCanvasViewDelegate,
             model.registerInkChange(page: index, from: before, to: canvas.drawing)
         }
     }
+
+    /// A stroke too small to be writing: a tap of the tip.
+    private static func isTap(_ stroke: PKStroke) -> Bool {
+        stroke.renderBounds.width < tapSize && stroke.renderBounds.height < tapSize
+    }
+
+    /// The mark under a tap of the tip, if any.
+    private func markTapped(by stroke: PKStroke, on canvas: PKCanvasView) -> UUID? {
+        guard let model, let pdfView = model.pdfView, Self.isTap(stroke) else { return nil }
+        let bounds = stroke.renderBounds
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        return model.annotation(at: canvas.convert(center, to: pdfView))
+    }
+
+    /// Strokes smaller than this (in points, ink width included) are taps.
+    private static let tapSize: CGFloat = 8
 
     /// Freehand marker: holding the tip still at the end of a stroke (about half a second) straightens it, as in
     /// note apps. The straight stroke keeps the original ink and width.

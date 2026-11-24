@@ -40,8 +40,8 @@ struct MarksLayer: View {
         }
         .blendMode(.multiply)
         .overlay {
-            // Pencil hover: where the current tool will land.
-            if let p = model.hoverPoint, let tool = model.tool {
+            // Pencil hover: where the current tool will land. The eraser has PencilKit's own preview.
+            if let p = model.hoverPoint, let tool = model.tool, tool != .eraser {
                 Circle()
                     .strokeBorder(hoverColor(tool), lineWidth: 1.5)
                     .frame(width: Theme.hoverRing, height: Theme.hoverRing)
@@ -217,7 +217,8 @@ struct NoteCard: View {
         }
     }
 
-    /// On the card in focus: the colours and delete, one tap each. The rest stays behind ⋯.
+    /// On the card in focus: the colours and delete (card and mark together), one tap each. Keeping the mark
+    /// while dropping the note is in ⋯.
     private var quickActions: some View {
         HStack(spacing: 0) {
             ForEach(HighlightColor.allCases, id: \.self) { color in
@@ -232,27 +233,17 @@ struct NoteCard: View {
                 .accessibilityLabel("\(color.name)色")
                 .accessibilityAddTraits(record.color == color ? .isSelected : [])
             }
-            Button(role: .destructive) { withAnimation { quickDelete() } } label: {
+            Button(role: .destructive) { withAnimation { model.delete(record.id) } } label: {
                 Image(systemName: "trash")
                     .font(Theme.labelFont)
-                    .foregroundStyle(Theme.secondaryInk)
+                    .foregroundStyle(Theme.error)
                     .frame(width: Theme.Card.dotHit, height: Theme.Card.dotHit)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel(record.kind == .highlight ? "删除批注，保留划线" : "删除批注")
+            .accessibilityLabel(record.kind == .highlight ? "删除划线和批注" : "删除批注")
         }
         .buttonStyle(.plain)
         .fixedSize()
-    }
-
-    /// The trash on the card removes the card; the mark under it stays (tap it to delete it too). Undo restores.
-    private func quickDelete() {
-        if record.kind == .highlight {
-            model.removeNote(record.id)
-            model.show(notice: "批注已删除，划线还在。可以撤销")
-        } else {
-            model.delete(record.id)
-        }
     }
 
     @ViewBuilder private var colorChoices: some View {
