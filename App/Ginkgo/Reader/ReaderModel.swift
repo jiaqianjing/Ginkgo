@@ -74,8 +74,17 @@ final class ReaderModel {
     private(set) var selectionLines: [CGRect] = []
     /// The annotation whose menu is showing (tapped highlight) or whose card is active.
     var focused: UUID?
-    /// Notes opened in reading mode, or folded away in review mode.
-    var peeked: Set<UUID> = []
+    /// Notes opened in reading mode, or folded away in review mode. Reading shows one floating card at a time:
+    /// opening a note closes the one before, so cards never pile up over each other or the page.
+    var peeked: Set<UUID> = [] {
+        didSet {
+            let opened = peeked.subtracting(oldValue)
+            if let newest = opened.first, peeked.count > 1 {
+                peeked = [newest]
+                if let expanded, expanded != newest { self.expanded = nil }
+            }
+        }
+    }
     var collapsed: Set<UUID> = []
     /// A note too long for its floating card, shown in full in the side column (or side panel in narrow windows).
     var expanded: UUID?

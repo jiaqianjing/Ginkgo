@@ -91,8 +91,6 @@ enum Theme {
     static let panelShade = Color.black.opacity(0.08)
     static let shadow = Color.black
     enum Mark {
-        /// How far an outer highlight's clip reaches past its lines, so only inner marks cut into it.
-        static let holeBleed: CGFloat = 8
         static let selectionOpacity = 0.28
         static let radius: CGFloat = 2
         static let underlineOpacity = 0.8
@@ -193,6 +191,10 @@ enum Theme {
         static let bottomInset: CGFloat = 0.04
         static let overhang: CGFloat = 0.12
         static let roundness: CGFloat = 0.38
+        /// Space between an outer highlight's stroke and an inner highlight inside it.
+        static let joinGap: CGFloat = 1.5
+        /// Outer stroke pieces narrower than this are left out rather than drawn as slivers.
+        static let minPiece: CGFloat = 3
     }
     static let hoverRing: CGFloat = 10
 

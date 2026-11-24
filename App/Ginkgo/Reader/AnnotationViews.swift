@@ -22,18 +22,13 @@ struct MarksLayer: View {
                 guard let g = model.geometry[record.id] else { continue }
                 let focused = model.focused == record.id
                 let opacity = focused ? Theme.markFocusOpacity : (model.mode == .reading ? Theme.markReadingOpacity : Theme.markReviewOpacity)
-                // A highlight inside this one keeps its own colour: its lines are cut out of this fill.
+                // A highlight inside this one keeps its own colour: this one is drawn as separate strokes around it.
                 let holes = record.style == .highlight ? model.innerHighlights(of: record.id).flatMap { model.geometry[$0]?.lines ?? [] } : []
-                if holes.isEmpty {
-                    MarkPainter.paint(&ctx, lines: g.lines, style: record.style, color: record.color, opacity: opacity, focused: focused)
-                } else {
-                    ctx.drawLayer { layer in
-                        var mask = Path(g.union.insetBy(dx: -Theme.Mark.holeBleed, dy: -Theme.Mark.holeBleed))
-                        for hole in holes { mask.addRect(hole) }
-                        layer.clip(to: mask, style: FillStyle(eoFill: true))
-                        MarkPainter.paint(&layer, lines: g.lines, style: record.style, color: record.color, opacity: opacity, focused: focused)
-                    }
-                }
+                // A rule inside a highlight skips its focus wash, which would double the colour under the word.
+                let insideHighlight = record.style != .highlight
+                    && model.passages[record.id].flatMap { model.enclosingMark(of: $0, style: .highlight) } != nil
+                MarkPainter.paint(&ctx, lines: MarkPainter.segments(of: g.lines, around: holes), style: record.style,
+                                  color: record.color, opacity: opacity, focused: focused && !insideHighlight)
                 if record.style == .highlight, focused || (record.hasNote && model.isOpen(record.id)) {
                     for line in g.lines {
                         var p = Path()
@@ -73,6 +68,27 @@ struct MarksLayer: View {
 /// How marks look on the page, sized from the line height so they scale with zoom. A highlight is a marker pass:
 /// a soft band over the x-height with rounded ends. Rules sit on the baseline, not at the bottom of the line box.
 enum MarkPainter {
+    /// An outer highlight's lines split around the inner highlights on them, so the outer stroke stops just short
+    /// of each inner one, rounded like any marker end, instead of the two overlapping at the join.
+    static func segments(of lines: [CGRect], around holes: [CGRect]) -> [CGRect] {
+        guard !holes.isEmpty else { return lines }
+        return lines.flatMap { line -> [CGRect] in
+            let h = line.height
+            // Room for both strokes' overhang at the join, plus a hairline gap.
+            let clearance = h * Theme.Marker.overhang * 2 + Theme.Marker.joinGap
+            let onLine = holes.filter { $0.intersection(line).height > min($0.height, h) / 2 }.sorted { $0.minX < $1.minX }
+            var pieces: [CGRect] = []
+            var start = line.minX
+            for hole in onLine {
+                let end = hole.minX - clearance
+                if end - start > Theme.Marker.minPiece { pieces.append(CGRect(x: start, y: line.minY, width: end - start, height: h)) }
+                start = max(start, hole.maxX + clearance)
+            }
+            if line.maxX - start > Theme.Marker.minPiece { pieces.append(CGRect(x: start, y: line.minY, width: line.maxX - start, height: h)) }
+            return pieces
+        }
+    }
+
     static func paint(_ ctx: inout GraphicsContext, lines: [CGRect], style: MarkStyle, color: HighlightColor,
                       opacity: Double, focused: Bool) {
         for line in lines {

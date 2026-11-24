@@ -291,3 +291,36 @@ import UIKit
         model.cancelTask(mark.id)
     }
 }
+
+struct MarkSegmentTests {
+    @Test func anOuterLineSplitsAroundAnInnerHighlight() {
+        let line = CGRect(x: 0, y: 0, width: 300, height: 20)
+        let hole = CGRect(x: 100, y: 0, width: 50, height: 20)
+        let pieces = MarkPainter.segments(of: [line], around: [hole])
+        #expect(pieces.count == 2)
+        #expect(pieces[0].minX == 0 && pieces[0].maxX < hole.minX)
+        #expect(pieces[1].minX > hole.maxX && pieces[1].maxX == 300)
+    }
+
+    @Test func holesOnOtherLinesAndEdgeSliversAreIgnored() {
+        let line = CGRect(x: 0, y: 0, width: 300, height: 20)
+        #expect(MarkPainter.segments(of: [line], around: [CGRect(x: 100, y: 40, width: 50, height: 20)]) == [line])
+        // A hole at the very start leaves no sliver before it.
+        let pieces = MarkPainter.segments(of: [line], around: [CGRect(x: 0, y: 0, width: 60, height: 20)])
+        #expect(pieces.count == 1 && pieces[0].minX > 60)
+    }
+}
+
+@MainActor struct OneCardTests {
+    @Test func openingANoteClosesTheOneBefore() throws {
+        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        defer { Library.delete(book, from: context) }
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        let model = ReaderModel(book: book, document: doc, context: context)
+        let a = UUID(), b = UUID()
+        model.peeked.insert(a)
+        model.peeked.insert(b)
+        #expect(model.peeked == [b])
+    }
+}

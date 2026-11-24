@@ -48,8 +48,8 @@ enum DebugLaunch {
             }
             model.focused = nil
         }
-        // `-demoPeek YES` opens every note's floating card; `-demoExpand YES` opens the first note in full.
-        if d.bool(forKey: "demoPeek") { model.peeked = Set(model.notes.map(\.id)) }
+        // `-demoPeek YES` opens the first note's floating card (reading shows one at a time); `-demoExpand YES` opens the first note in full.
+        if d.bool(forKey: "demoPeek"), let first = model.notes.first { model.peeked = [first.id] }
         if d.bool(forKey: "demoExpand"), let first = model.notes.first { model.expand(first.id) }
         // `-demoTool <name>` picks a Pencil tool; `-demoPalette YES` opens the squeeze palette.
         if let raw = d.string(forKey: "demoTool") { model.tool = PenTool(rawValue: raw) }
