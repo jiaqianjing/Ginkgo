@@ -66,18 +66,18 @@ public enum AIError: LocalizedError, Equatable {
     /// One short line for a margin card. The provider's own message stays in `detail`.
     public var errorDescription: String? {
         switch self {
-        case .missingKey: "还没有填写 API key。请在设置里填好再试。"
+        case .missingKey: String(localized: "还没有填写 API key。请在设置里填好再试。", bundle: L10n.bundle)
         case .http(let status, let message):
             switch status {
-            case 401, 403: "API key 无效或没有权限，请在设置里检查。"
-            case 404: "找不到这个模型，请在设置里检查模型名称。"
+            case 401, 403: String(localized: "API key 无效或没有权限，请在设置里检查。", bundle: L10n.bundle)
+            case 404: String(localized: "找不到这个模型，请在设置里检查模型名称。", bundle: L10n.bundle)
             case 429: Self.rateLimitSummary(message)
-            case 500...599: "服务暂时不可用（\(status)），稍后再试。"
-            default: "服务返回错误 \(status)：\(Self.clip(message))"
+            case 500...599: String(localized: "服务暂时不可用（\(status)），稍后再试。", bundle: L10n.bundle)
+            default: String(localized: "服务返回错误 \(status)：\(Self.clip(message))", bundle: L10n.bundle)
             }
-        case .refused: "模型拒绝回答这个问题。"
-        case .empty: "模型没有返回内容。"
-        case .badFormat: "回答的格式不对，可以重试或换个模型。"
+        case .refused: String(localized: "模型拒绝回答这个问题。", bundle: L10n.bundle)
+        case .empty: String(localized: "模型没有返回内容。", bundle: L10n.bundle)
+        case .badFormat: String(localized: "回答的格式不对，可以重试或换个模型。", bundle: L10n.bundle)
         }
     }
 
@@ -90,19 +90,23 @@ public enum AIError: LocalizedError, Equatable {
     static func rateLimitSummary(_ message: String) -> String {
         let lower = message.lowercased()
         let quota = lower.contains("quota") || lower.contains("billing") || lower.contains("credit")
-        var text = quota ? "额度用完了" : "请求太频繁"
-        if let wait = retryDelay(in: message) { text += "，约 \(wait)后可以再试" } else { text += "，稍后再试" }
-        return text + "。"
+        let wait = retryDelay(in: message)
+        return switch (quota, wait) {
+        case (true, let wait?): String(localized: "额度用完了，约 \(wait)后可以再试。", bundle: L10n.bundle)
+        case (true, nil): String(localized: "额度用完了，稍后再试。", bundle: L10n.bundle)
+        case (false, let wait?): String(localized: "请求太频繁，约 \(wait)后可以再试。", bundle: L10n.bundle)
+        case (false, nil): String(localized: "请求太频繁，稍后再试。", bundle: L10n.bundle)
+        }
     }
 
-    /// Reads "retry in 14382.5s" (Gemini) or "try again in 20s" style hints and renders them in Chinese.
+    /// Reads "retry in 14382.5s" (Gemini) or "try again in 20s" style hints and renders them in the reader's language.
     static func retryDelay(in message: String) -> String? {
         guard let match = message.firstMatch(of: /(?i)(?:retry|try again) in ([0-9]+(?:\.[0-9]+)?)\s*s/),
               let seconds = Double(match.1) else { return nil }
         let s = Int(seconds.rounded(.up))
-        if s >= 3600 { return "\(Int((Double(s) / 3600).rounded())) 小时" }
-        if s >= 60 { return "\(Int((Double(s) / 60).rounded(.up))) 分钟" }
-        return "\(max(s, 1)) 秒"
+        if s >= 3600 { return String(localized: "\(Int((Double(s) / 3600).rounded())) 小时", bundle: L10n.bundle) }
+        if s >= 60 { return String(localized: "\(Int((Double(s) / 60).rounded(.up))) 分钟", bundle: L10n.bundle) }
+        return String(localized: "\(max(s, 1)) 秒", bundle: L10n.bundle)
     }
 
     static func clip(_ message: String, limit: Int = 80) -> String {

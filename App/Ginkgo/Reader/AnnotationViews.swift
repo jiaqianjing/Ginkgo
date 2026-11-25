@@ -235,7 +235,7 @@ struct NoteCard: View {
         let children = model.childNotes(of: record.id)
         if !children.isEmpty {
             VStack(alignment: .leading, spacing: Theme.Space.compact) {
-                NoteParts.heading("句中查过")
+                NoteParts.heading(String(localized: "句中查过"))
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: Theme.Space.compact) {
                         ForEach(children, id: \.id) { child in
@@ -331,7 +331,7 @@ struct NoteCard: View {
         switch record.replyState {
         case .failed:
             VStack(alignment: .leading, spacing: Theme.rhythm) {
-                Text(record.replyError ?? "没有拿到回答。")
+                Text(record.replyError ?? String(localized: "没有拿到回答。"))
                     .font(Theme.footnoteFont)
                     .foregroundStyle(Theme.error)
                 HStack {
@@ -370,19 +370,19 @@ struct NoteCard: View {
             KeyItemsView(items: compact ? Array(items.prefix(NoteParts.compactKeyItems)) : items)
         }
         if activity == .keyItems {
-            NoteParts.progress("正在找重点表达…")
+            NoteParts.progress(String(localized: "正在找重点表达…"))
         } else if let error = study.keyItemsError {
-            NoteParts.failure("重点表达没拿到：\(error)") { model.retryKeyItems(record.id) }
+            NoteParts.failure(String(localized: "重点表达没拿到：\(error)")) { model.retryKeyItems(record.id) }
         }
         if activity == .analysis {
-            NoteParts.progress("正在分析句子…")
+            NoteParts.progress(String(localized: "正在分析句子…"))
         } else if let analysis = study.analysis {
             if !compact {
                 NoteParts.divider
                 AnalysisView(analysis: analysis)
             }
         } else if let error = study.analysisError {
-            NoteParts.failure("分析没拿到：\(error)") { model.analyze(record.id) }
+            NoteParts.failure(String(localized: "分析没拿到：\(error)")) { model.analyze(record.id) }
         } else if study.keyItems?.analysisWorthy == true, activity == nil {
             Button { model.analyze(record.id) } label: {
                 Label {
@@ -743,9 +743,9 @@ private struct ActionCapsule: View {
     }
 
     @ViewBuilder private var actionItems: some View {
-        item("翻译", "character.bubble", translate)
-        item("解释", "text.magnifyingglass", explain)
-        item("提问", "questionmark.bubble", ask)
+        item(String(localized: "翻译"), "character.bubble", translate)
+        item(String(localized: "解释"), "text.magnifyingglass", explain)
+        item(String(localized: "提问"), "questionmark.bubble", ask)
         trailing
     }
 

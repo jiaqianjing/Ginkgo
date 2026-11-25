@@ -133,6 +133,15 @@ Ginkgo/
    - 视觉稿接入。
    - App Store 准备。
 
+## 多语言（2026-11-25 起）
+
+- 支持英文和简体中文，跟随系统语言；其他语言回落到英文（开发语言 `en`）。
+- 代码里仍然直接写中文：中文是 String Catalog 的键（`App/Ginkgo/Localizable.xcstrings`，`sourceLanguage` 为 `zh-Hans`），英文是翻译，复数用 plural 变体。SwiftUI 的 `Text("…")`、`Button("…")` 等自动走本地化；其余地方（模型里的标签、提示、导出文字、撤销名称）用 `String(localized:)`。冒号、括号、列表分隔符也走本地化（`"："`、`"（%@）"`、`"、"`）。
+- GinkgoKit 有自己的 catalog（`Sources/GinkgoAI/Resources/Localizable.xcstrings`），通过 `L10n.bundle` 取：报错、外语水平、词卡标签、模型说明。发给模型的提示词不本地化。包的测试用 `inLanguage("zh-Hans") { … }` 固定语言。
+- 加了新的界面文字后：构建一次，用 `xcrun xcstringstool sync` 把 `.stringsdata` 合进 catalog，补英文，再跑 `python3 scripts/check-localization.py <DerivedData>`，它会列出没走本地化的中文字符串和缺英文的键。各语言自己的名字（回答语言列表）标 `l10n-ignore`。
+- App 测试的 scheme 带 `-AppleLanguages (zh-Hans)`，结果不随机器语言变化；`LocalizationTests` 检查英文翻译和复数。
+- 调试用的 `-visualFixture study` 在英文界面下换成英文内容，用来拍英文商店截图。
+
 ## 发版
 
 - **App Store Connect**：名称 Ginkgo Folio（主屏幕显示 Ginkgo），套装 ID `com.kenjia.ginkgo`，SKU `ginkgo-ios`，Apple ID 6839239946，主要语言英语（美国）。

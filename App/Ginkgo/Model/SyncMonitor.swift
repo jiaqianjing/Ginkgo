@@ -46,18 +46,18 @@ final class SyncMonitor {
     func update(finished: Date?, succeeded: Bool, setup: Bool, error: String?) {
         guard state != .unavailable else { return }
         guard let finished else { state = .syncing; return }
-        if !succeeded { state = .failed(error ?? "未知错误") }
+        if !succeeded { state = .failed(error ?? String(localized: "未知错误")) }
         else if !setup { state = .synced(finished) }
         else if state == .syncing { state = .waiting }
     }
 
     var summary: String {
         switch state {
-        case .unavailable: "未开启"
-        case .waiting: "已开启"
-        case .syncing: "正在同步…"
-        case .synced(let date): "已同步 · \(date.formatted(date: .omitted, time: .shortened))"
-        case .failed: "同步出错"
+        case .unavailable: String(localized: "未开启")
+        case .waiting: String(localized: "已开启")
+        case .syncing: String(localized: "正在同步…")
+        case .synced(let date): String(localized: "已同步 · \(date.formatted(date: .omitted, time: .shortened))")
+        case .failed: String(localized: "同步出错")
         }
     }
 }

@@ -36,7 +36,7 @@ extension ReaderModel {
     /// Empties the sheet as one undoable step.
     func clearScratch() {
         guard let canvas = scratchCanvas, !canvas.drawing.strokes.isEmpty else { return }
-        replaceScratch(with: PKDrawing(), name: "清空草稿")
+        replaceScratch(with: PKDrawing(), name: String(localized: "清空草稿"))
     }
 
     private func replaceScratch(with drawing: PKDrawing, name: String) {

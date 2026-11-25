@@ -40,14 +40,14 @@ struct AnnotationSnapshot {
         r.createdAt = createdAt; r.inkData = inkData; r.question = question; r.taskRaw = taskRaw
         r.replyText = replyText; r.replyStateRaw = replyStateRaw; r.replyModel = replyModel
         r.threadData = threadData; r.studyData = studyData
-        r.replyError = replyStateRaw == ReplyState.failed.rawValue ? (replyError ?? "回答被撤销了，可以重试。") : replyError
+        r.replyError = replyStateRaw == ReplyState.failed.rawValue ? (replyError ?? String(localized: "回答被撤销了，可以重试。")) : replyError
     }
 
     /// A follow-up still waiting for its answer comes back as failed, like the main reply.
     private static func settled(_ thread: [FollowUp]) -> [FollowUp]? {
         thread.map { turn in
             var turn = turn
-            if turn.answer.isEmpty, turn.error == nil { turn.error = "回答被撤销了，可以重试。" }
+            if turn.answer.isEmpty, turn.error == nil { turn.error = String(localized: "回答被撤销了，可以重试。") }
             return turn
         }
     }
@@ -83,13 +83,13 @@ extension ReaderModel {
         snapshot.apply(to: record)
         record.book = book
         context.insert(record)
-        registerRemoval(of: record.id, name: "删除批注")
+        registerRemoval(of: record.id, name: String(localized: "删除批注"))
         try? context.save()
         reload()
     }
 
     /// Puts an annotation's fields back (an AI note becomes the plain mark it was, or gets its old answer back).
-    func revert(to snapshot: AnnotationSnapshot, name: String = "AI 批注") {
+    func revert(to snapshot: AnnotationSnapshot, name: String = String(localized: "AI 批注")) {
         guard let record = annotation(snapshot.id) else { return }
         cancelTask(snapshot.id)
         let current = AnnotationSnapshot(record)
@@ -102,7 +102,7 @@ extension ReaderModel {
 
     /// Page ink changed (strokes kept, erased, or turned into marks): undo puts the old drawing back.
     func registerInkChange(page: Int, from old: PKDrawing, to new: PKDrawing) {
-        registerUndo("笔迹") { model in
+        registerUndo(String(localized: "笔迹")) { model in
             model.pageInk.setDrawing(old, page: page)
             model.registerInkChange(page: page, from: new, to: old)
         }
@@ -127,7 +127,7 @@ extension ReaderModel {
         collapsed.removeAll()
         expanded = nil
         clearSelection()
-        registerUndo("清除全部批注") { $0.restoreAll(snapshots) }
+        registerUndo(String(localized: "清除全部批注")) { $0.restoreAll(snapshots) }
         reload()
     }
 
@@ -144,7 +144,7 @@ extension ReaderModel {
             }
         }
         try? context.save()
-        registerUndo("清除全部批注") { $0.clearAll() }
+        registerUndo(String(localized: "清除全部批注")) { $0.clearAll() }
         reload()
     }
 

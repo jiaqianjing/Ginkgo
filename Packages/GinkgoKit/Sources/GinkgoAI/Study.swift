@@ -27,17 +27,17 @@ public enum LearnerLevel: String, CaseIterable, Codable, Sendable, Identifiable 
 
     public var displayName: String {
         switch self {
-        case .beginner: "入门"
-        case .intermediate: "中级"
-        case .advanced: "高级"
+        case .beginner: String(localized: "入门", bundle: L10n.bundle)
+        case .intermediate: String(localized: "中级", bundle: L10n.bundle)
+        case .advanced: String(localized: "高级", bundle: L10n.bundle)
         }
     }
 
     public var detail: String {
         switch self {
-        case .beginner: "常用词还在积累，长句容易卡住"
-        case .intermediate: "能读懂大意，生词和复杂句式需要帮忙"
-        case .advanced: "读原版书没问题，只想留意地道表达"
+        case .beginner: String(localized: "常用词还在积累，长句容易卡住", bundle: L10n.bundle)
+        case .intermediate: String(localized: "能读懂大意，生词和复杂句式需要帮忙", bundle: L10n.bundle)
+        case .advanced: String(localized: "读原版书没问题，只想留意地道表达", bundle: L10n.bundle)
         }
     }
 
@@ -96,17 +96,17 @@ public struct WordCard: Codable, Hashable, Sendable {
         var lines: [String] = []
         var head = term ?? ""
         if let phonetic, !phonetic.isEmpty { head += " \(phonetic)" }
-        if let lemma, !lemma.isEmpty, lemma != term { head += "（原形 \(lemma)）" }
+        if let lemma, !lemma.isEmpty, lemma != term { head += String(localized: "（原形 \(lemma)）", bundle: L10n.bundle) }
         if !head.isEmpty { lines.append(head) }
-        if let contextMeaning, !contextMeaning.isEmpty { lines.append("这里的意思：\(contextMeaning)") }
+        if let contextMeaning, !contextMeaning.isEmpty { lines.append(String(localized: "这里的意思：\(contextMeaning)", bundle: L10n.bundle)) }
         for sense in senses ?? [] {
             guard let meaning = sense.meaning, !meaning.isEmpty else { continue }
             lines.append([sense.pos, meaning].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " "))
         }
         if let source = example?.source, !source.isEmpty {
-            lines.append("例句：\(source)" + (example?.target.map { "（\($0)）" } ?? ""))
+            lines.append(String(localized: "例句：\(source)", bundle: L10n.bundle) + (example?.target.map { "（\($0)）" } ?? ""))
         }
-        if let note, !note.isEmpty { lines.append("提示：\(note)") }
+        if let note, !note.isEmpty { lines.append(String(localized: "提示：\(note)", bundle: L10n.bundle)) }
         return lines.joined(separator: "\n")
     }
 }
@@ -130,13 +130,13 @@ public struct KeyItem: Codable, Hashable, Sendable {
     /// Short label for the kind, e.g. "搭配".
     public var kindLabel: String? {
         switch kind {
-        case "phrase": "短语"
-        case "phrasal_verb": "短语动词"
-        case "collocation": "搭配"
-        case "idiom": "习语"
-        case "pattern": "句型"
-        case "slang": "口语"
-        case "word": "词"
+        case "phrase": String(localized: "短语", bundle: L10n.bundle)
+        case "phrasal_verb": String(localized: "短语动词", bundle: L10n.bundle)
+        case "collocation": String(localized: "搭配", bundle: L10n.bundle)
+        case "idiom": String(localized: "习语", bundle: L10n.bundle)
+        case "pattern": String(localized: "句型", bundle: L10n.bundle)
+        case "slang": String(localized: "口语", bundle: L10n.bundle)
+        case "word": String(localized: "词", bundle: L10n.bundle)
         default: nil
         }
     }
@@ -174,15 +174,15 @@ public struct SentenceAnalysis: Codable, Hashable, Sendable {
     public var summary: String {
         var lines: [String] = []
         if let skeleton, !skeleton.isEmpty {
-            lines.append("主干：\(skeleton)" + (skeletonTranslation.map { "（\($0)）" } ?? ""))
+            lines.append(String(localized: "主干：\(skeleton)", bundle: L10n.bundle) + (skeletonTranslation.map { "（\($0)）" } ?? ""))
         }
         for chunk in chunks ?? [] {
             guard let text = chunk.text, !text.isEmpty else { continue }
             lines.append("- \(text)｜\(chunk.role ?? "")：\(chunk.explain ?? "")")
         }
-        for insight in insights ?? [] where !insight.isEmpty { lines.append("要点：\(insight)") }
-        if let usage, !usage.isEmpty { lines.append("用法：\(usage)") }
-        if let paraphrase, !paraphrase.isEmpty { lines.append("换个说法：\(paraphrase)") }
+        for insight in insights ?? [] where !insight.isEmpty { lines.append(String(localized: "要点：\(insight)", bundle: L10n.bundle)) }
+        if let usage, !usage.isEmpty { lines.append(String(localized: "用法：\(usage)", bundle: L10n.bundle)) }
+        if let paraphrase, !paraphrase.isEmpty { lines.append(String(localized: "换个说法：\(paraphrase)", bundle: L10n.bundle)) }
         return lines.joined(separator: "\n")
     }
 }

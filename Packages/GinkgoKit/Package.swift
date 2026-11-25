@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "GinkgoKit",
+    defaultLocalization: "en",
     platforms: [.iOS(.v26), .macOS(.v26)],
     products: [
         .library(name: "GinkgoCore", targets: ["GinkgoCore"]),
@@ -12,7 +13,7 @@ let package = Package(
     targets: [
         .target(name: "GinkgoCore"),
         .testTarget(name: "GinkgoCoreTests", dependencies: ["GinkgoCore"]),
-        .target(name: "GinkgoAI"),
+        .target(name: "GinkgoAI", resources: [.process("Resources")]),
         .testTarget(name: "GinkgoAITests", dependencies: ["GinkgoAI"]),
     ]
 )

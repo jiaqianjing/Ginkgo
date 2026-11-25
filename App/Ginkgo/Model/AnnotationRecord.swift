@@ -61,9 +61,9 @@ final class AnnotationRecord {
 
     var taskLabel: String {
         switch taskRaw {
-        case "translate": studyData != nil && study.word != nil ? "查词" : "翻译"
-        case "explain": "解释"
-        default: "提问"
+        case "translate": studyData != nil && study.word != nil ? String(localized: "查词") : String(localized: "翻译")
+        case "explain": String(localized: "解释")
+        default: String(localized: "提问")
         }
     }
 }

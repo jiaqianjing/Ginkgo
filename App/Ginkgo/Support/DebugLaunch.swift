@@ -96,6 +96,11 @@ enum DebugLaunch {
     #if DEBUG
     /// Stable visual evidence only. Requires an in-memory store; never calls an AI provider.
     private static func visualFixture(_ state: String, model: ReaderModel) {
+        // An English reader gets notes written for them, for English screenshots.
+        if state == "study", Bundle.main.preferredLocalizations.first == "en" {
+            englishStudy(model: model)
+            return
+        }
         let samples: [(String, HighlightColor, String, String)] = [
             ("It hedges against catastrophe", .yellow, "translate", "它用许多适度的优势分散风险，而不是把生存寄托在某一种过人的本领上。"),
             ("hibakujumoku", .violet, "explain", "「被爆树木」：原子弹爆炸后仍然存活、重新萌芽的树。这个词也承载着当地人对生命延续的珍视。"),
@@ -164,6 +169,55 @@ enum DebugLaunch {
             if let word = model.document.findString("hedges", withOptions: []).first {
                 model.highlight(word, color: .green, merge: false)
             }
+        }
+        model.reload()
+        model.focused = nil
+    }
+
+    /// The study fixture for an English reader: explanations in English, and a word card for the one foreign word.
+    private static func englishStudy(model: ReaderModel) {
+        func note(_ text: String, _ color: HighlightColor, style: MarkStyle = .highlight) -> AnnotationRecord? {
+            guard let selection = model.document.findString(text, withOptions: []).first else { return nil }
+            return model.highlight(selection, color: color, style: style, merge: false)
+        }
+        if let record = note("It hedges against catastrophe", .yellow) {
+            record.taskRaw = "explain"
+            record.replyState = .done
+            record.replyText = "The ginkgo survives by being decent at many things instead of excellent at one, so no single "
+                + "disaster can wipe it out, the way an investor spreads money to limit a loss."
+            record.thread = [FollowUp(question: "Is “hedge” a finance word here?",
+                                      answer: "It began as a garden hedge, a protective boundary. Finance borrowed it for "
+                                        + "limiting risk, and the author borrows it back for biology.")]
+        }
+        if let record = note("catastrophe", .yellow, style: .underline) {
+            var card = WordCard()
+            card.term = "catastrophe"; card.phonetic = "/kəˈtæstrəfi/"
+            card.contextMeaning = "a disaster severe enough to wipe out a species"
+            card.senses = [WordCard.Sense(pos: "n.", meaning: "a sudden event causing great damage or suffering")]
+            record.taskRaw = "translate"
+            record.study = StudyNote(word: card)
+            record.replyText = card.summary
+            record.replyState = .done
+        }
+        _ = note("hedges", .green)
+        if let record = note("hibakujumoku", .violet) {
+            var card = WordCard()
+            card.term = "hibakujumoku"; card.phonetic = "/hibakɯ̥dʑɯmokɯ/"
+            card.contextMeaning = "trees that survived the 1945 atomic bombings"
+            card.senses = [WordCard.Sense(pos: "n.", meaning: "(Japanese 被爆樹木) a tree that survived the bombing of Hiroshima or Nagasaki")]
+            card.example = WordCard.Example(source: "the hibakujumoku of Hiroshima", target: nil)
+            card.note = "Usually kept in its Japanese form in English texts."
+            record.taskRaw = "translate"
+            record.study = StudyNote(word: card)
+            record.replyText = card.summary
+            record.replyState = .done
+        }
+        if let record = note("guarded by the same tree", .blue) {
+            record.taskRaw = "ask"
+            record.question = "Why would a tree guard a book?"
+            record.replyState = .done
+            record.replyText = "Scholars once pressed ginkgo leaves between pages to keep silverfish away, so the tree that "
+                + "outlived the dinosaurs also protected the library."
         }
         model.reload()
         model.focused = nil

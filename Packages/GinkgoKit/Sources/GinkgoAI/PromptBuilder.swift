@@ -20,9 +20,9 @@ public enum AITask: Codable, Hashable, Sendable {
 
     public var label: String {
         switch self {
-        case .translate: "翻译"
-        case .explain: "解释"
-        case .ask, .handwritten: "提问"
+        case .translate: String(localized: "翻译", bundle: L10n.bundle)
+        case .explain: String(localized: "解释", bundle: L10n.bundle)
+        case .ask, .handwritten: String(localized: "提问", bundle: L10n.bundle)
         }
     }
 }

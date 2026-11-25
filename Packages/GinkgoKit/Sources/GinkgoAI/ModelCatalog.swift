@@ -10,9 +10,9 @@ public struct ModelChoice: Hashable, Sendable {
     /// One line under the model id in the menu.
     public var note: String {
         switch tier {
-        case .fast: "推荐 · 速度快、费用低"
-        case .balanced: "均衡 · 回答更细"
-        case .strongest: "能力最强 · 较慢、较贵"
+        case .fast: String(localized: "推荐 · 速度快、费用低", bundle: L10n.bundle)
+        case .balanced: String(localized: "均衡 · 回答更细", bundle: L10n.bundle)
+        case .strongest: String(localized: "能力最强 · 较慢、较贵", bundle: L10n.bundle)
         }
     }
 }
@@ -257,11 +257,14 @@ public struct AnswerLatency: Equatable, Sendable {
     }
 
     /// "首字 0.6 秒 · 完成 1.4 秒"
-    public var summary: String { "首字 \(Self.seconds(firstWord)) · 完成 \(Self.seconds(total))" }
+    public var summary: String {
+        String(localized: "首字 \(Self.seconds(firstWord)) · 完成 \(Self.seconds(total))", bundle: L10n.bundle)
+    }
 
     static func seconds(_ d: Duration) -> String {
         let s = Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
-        return s < 10 ? String(format: "%.1f 秒", s) : "\(Int(s.rounded())) 秒"
+        let value = s < 10 ? String(format: "%.1f", s) : "\(Int(s.rounded()))"
+        return String(localized: "\(value) 秒", bundle: L10n.bundle)
     }
 
     /// Streams `request` and times it; returns the text and the latency.
