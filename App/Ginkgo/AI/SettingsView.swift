@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var settings = AISettings.shared
+    private var sync = SyncMonitor.shared
     @State private var keyDraft = ""
     @State private var listed: [AIProviderKind: [String]] = [:]
     @State private var listError: String?
@@ -84,6 +85,19 @@ struct SettingsView: View {
                     Text("回答")
                 } footer: {
                     Text("翻译外语时，选一个词出词卡，选一句话出译文和重点表达，难句可以再要语法分析。挑哪些表达、讲多深，按你的外语水平来。")
+                }
+
+                Section {
+                    LabeledContent("iCloud 同步", value: sync.summary)
+                    if case .failed(let message) = sync.state {
+                        Text(message).font(Theme.calloutFont).foregroundStyle(Theme.error)
+                    }
+                } header: {
+                    Text("同步")
+                } footer: {
+                    Text(sync.state == .unavailable
+                         ? "没有登录 iCloud，或在系统设置里关掉了 Ginkgo 的 iCloud。书和批注只保存在这台设备上；打开 iCloud 后会自动同步。"
+                         : "书、划线、批注、笔迹、草稿和阅读位置保存在你自己的 iCloud 里，登录同一个 Apple 账户的设备都能看到。PDF 文件放在 iCloud 云盘里，不会出现在「文件」App 中。")
                 }
 
                 Section {

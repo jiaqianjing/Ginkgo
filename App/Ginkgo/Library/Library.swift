@@ -5,7 +5,7 @@ import UIKit
 
 /// Imports PDFs into the app's own storage and removes them again.
 enum Library {
-    /// Where imported PDFs live. Phase 6 moves this into the iCloud Drive container.
+    /// Where imported PDFs land first, and stay when there is no iCloud (see `BookFiles`).
     nonisolated static let directory: URL = {
         let url = URL.applicationSupportDirectory.appending(path: "Library", directoryHint: .isDirectory)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
@@ -40,6 +40,7 @@ enum Library {
         let book = Book(title: title(of: document) ?? name, fileName: fileName,
                         pageCount: document.pageCount, coverData: cover(of: document))
         context.insert(book)
+        BookFiles.shared.adopt(fileName)
         return book
     }
 
@@ -73,7 +74,7 @@ enum Library {
     }
 
     static func delete(_ book: Book, from context: ModelContext) {
-        try? FileManager.default.removeItem(at: book.fileURL)
+        BookFiles.shared.remove(book.fileName)
         context.delete(book)
     }
 

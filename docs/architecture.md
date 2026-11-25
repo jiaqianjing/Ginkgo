@@ -66,7 +66,7 @@ Ginkgo/
 
 - **书库（Library）**：
   - 封面网格，封面取 PDF 首页的缩略图。
-  - 可以从"文件" App 导入（多选）或拖进来。PDF 复制进 App 自己的容器，以后同步时改成放进 iCloud Drive。
+  - 可以从"文件" App 导入（多选）或拖进来。PDF 先复制进 App 自己的文件夹，有 iCloud 时再移进 iCloud 云盘（见下面的 iCloud 同步）。
   - 按最近阅读排序。
 - **阅读器（Reader）**：
   - `PDFView` 包装成 SwiftUI 视图，记住每本书读到哪一页。
@@ -82,7 +82,14 @@ Ginkgo/
 - **批注卡片**（#10、#11）：阅读模式一次只浮起一张卡片，打开新的就收起旧的（`ReaderModel.peeked` 的 didSet）；回顾模式的侧栏不受影响。卡片左上角的颜色点是颜色菜单；卡片处于焦点时，标题行右侧直接显示色盘和红色的删除（卡片和划线一起删，可撤销）；右上角的 ⋯ 和长按卡片是同一份操作菜单（复制、追问、换颜色、重新回答、删除）。删除分两种：`ReaderModel.removeNote` 去掉批注、保留划线，`delete` 连划线一起删，都能撤销。橡皮擦掉经过的普通划线（挂在画布自己的 `drawingGestureRecognizer` 上跟踪轨迹，单独加的手势收不到触摸），不擦带批注的标记，只在页面底部提示去卡片里删（`ReaderModel.show(notice:)`）；橡皮是像素橡皮（`PKEraserTool(.bitmap)`），只擦碰到的部分，悬停预览是 PencilKit 自带的圆圈；擦断的笔画碎片按原样保存，不当作新笔画解读（`PageInk.erased`）。拿着钢笔、圈选这类画布工具时，Pencil 在标记上单独点一下不会留下墨点，而是和手指点一样打开卡片或操作条（`PageInk.markTapped`、`ReaderModel.tapMark`）。回答完成后底部有「追问」，问答接在原回答下面，存在 `AnnotationRecord.threadData`；浮起的卡片只显示最新一轮，完整视图把更早的折叠成「前 N 轮」。外语翻译的词卡、重点表达和语法分析存在 `studyData`（`StudyNote`）。是否算外语由 `AISettings.isLearning` 用 NaturalLanguage 判断。请求统一走 `Reader/NoteAI.swift` 的 `perform`：每条批注同时只有一个请求，`ReaderModel.busy` 告诉卡片正在等什么。追问可以撤销，导出时一并带上。
 - **持久化**：
   - SwiftData：`Book`、`AnnotationRecord`、`Reply`。
-  - 现在就按 CloudKit 的约束设计：所有属性可空或有默认值，不用唯一约束，关系都可选。等开通 iCloud 时直接打开同步，不用迁移数据。
+  - 按 CloudKit 的约束设计：所有属性可空或有默认值，不用唯一约束，关系都可选。
+- **iCloud 同步**（2026-11-25 起）：
+  - **记录**：SwiftData 镜像到用户自己的 CloudKit 私有库（容器 `iCloud.com.kenjia.ginkgo`，`Persistence.makeContainer`）。书、划线、批注、AI 回答、追问、笔迹、草稿和阅读位置都在里面；大字段（封面、笔迹、草稿）是 CKAsset。CloudKit 打不开时退回本地库，阅读不依赖 iCloud。第一次以同步方式打开前，把原来的库复制一份到 `Application Support/Backups/before-icloud`。
+  - **PDF 文件**：放在同一个容器的 iCloud 云盘目录 `Books/` 里（`Library/BookFiles.swift`），不在「文件」App 中显示，免得用户改名或删掉后记录对不上。没有 iCloud 时留在 `Application Support/Library`；之后有了 iCloud，启动时用 `setUbiquitous` 移过去。`NSMetadataQuery` 盯着这个目录，没下载的文件自动下载，所以每台设备上都是整个书库。打开一本还没下载完的书时显示「正在从 iCloud 下载」，书库封面下面也会这样写。删书用 `NSFileCoordinator` 删文件，删除会同步到其他设备。
+  - **状态**：`SyncMonitor` 听 `NSPersistentCloudKitContainer` 的同步事件，设置页「同步」一栏显示未开启、正在同步、上次同步时间或错误。
+  - **测试**：测试一律用 `Persistence.memoryContainer()`。有了 iCloud 权限后，不写 `cloudKitDatabase` 的配置默认会连 CloudKit。
+  - **还没做**：别的设备改了正在打开的这本书，要关掉重开才能看到；同一页笔迹在两台设备上同时改，以后写的为准。
+  - **上架前**：在 CloudKit Console 把 Development 环境的结构部署到 Production。TestFlight 和 App Store 版本连的是 Production。
 - **设置**：
   - 选择 AI 服务商、填 key、选模型。
   - 目标语言。
@@ -121,7 +128,7 @@ Ginkgo/
    - 导出 Markdown。
    - 导出带标准批注的 PDF：高亮、ink、附带 AI 回答的文字批注。
 6. **打磨与上架**：
-   - iCloud 同步。
+   - iCloud 同步（已完成，见上面的「iCloud 同步」）。
    - 性能，尤其是几百页 PDF 和几百条批注的情况。
    - 视觉稿接入。
    - App Store 准备。

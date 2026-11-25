@@ -169,6 +169,7 @@ private struct BookCover: View {
     }
 
     private var status: String {
+        if BookFiles.shared.cloudDirectory != nil, !BookFiles.shared.isReady(book.fileName) { return "正在从 iCloud 下载" }
         guard book.lastOpenedAt != nil else { return "\(book.pageCount) 页 · 未读" }
         return "读到第 \(book.lastPageIndex + 1) / \(book.pageCount) 页"
     }

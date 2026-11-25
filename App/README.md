@@ -63,7 +63,7 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 - 浮起的卡片会盖住几行字，点贴签或空白处可以收起。
 - 横屏书页占满宽度后字很大，一屏的行数少；可以双指捏合缩小。
 - 跨页选中的文字只记录第一页那部分。
-- 还没有 iCloud 同步（第六阶段）。视觉参数集中在 `Ginkgo/Design/Theme.swift`；当前设计说明和浅深色截图见 [`docs/design/`](../docs/design/README.md)，等待审核。
+- iCloud 同步要在登录了 iCloud 的真机上验证，模拟器默认没有账户，只走本地。视觉参数集中在 `Ginkgo/Design/Theme.swift`；当前设计说明和浅深色截图见 [`docs/design/`](../docs/design/README.md)，等待审核。
 
 ## 模拟器调试参数
 
