@@ -89,6 +89,27 @@ final class AISettings {
         return key(for: provider) != nil
     }
 
+    // MARK: Consent
+
+    /// Bumped when consent changes so views re-read it.
+    private(set) var consentRevision = 0
+
+    /// Whether the reader agreed to send passages to this service. Asked once per service, before its first request.
+    func hasConsent(for p: AIProviderKind) -> Bool {
+        _ = consentRevision
+        return defaults.bool(forKey: Self.consentKey(p))
+    }
+
+    func setConsent(_ on: Bool, for p: AIProviderKind) {
+        defaults.set(on, forKey: Self.consentKey(p))
+        consentRevision += 1
+    }
+
+    /// A request would go out now but the reader hasn't agreed yet. Without a key it fails as before instead.
+    var needsConsent: Bool { hasKey && !hasConsent(for: provider) }
+
+    static func consentKey(_ p: AIProviderKind) -> String { "ai.consent.\(p.rawValue)" }
+
     func client() throws -> (AIClient, label: String) {
         guard let key = key(for: provider) else { throw AIError.missingKey }
         let model = effectiveModel(for: provider)
@@ -105,5 +126,14 @@ final class AISettings {
         if id.hasPrefix("de") { return "Deutsch" }
         if id.hasPrefix("es") { return "Español" }
         return "English"
+    }
+}
+
+/// What the reader is told before passages leave the device.
+enum ConsentText {
+    static func message(_ p: AIProviderKind) -> String {
+        "AI 回答由 \(p.displayName) 生成。Ginkgo 会用你自己的 key，把选中的原文、它前后的几段文字、书名和你的问题直接发给 "
+            + "\(p.displayName)。Ginkgo 没有自己的服务器，看不到也不保存这些内容；\(p.displayName) 按它的隐私政策处理。"
+            + "可以随时在设置里关掉。"
     }
 }

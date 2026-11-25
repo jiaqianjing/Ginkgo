@@ -126,6 +126,14 @@ Ginkgo/
    - 视觉稿接入。
    - App Store 准备。
 
+## 发版
+
+- **版本号**：`App/project.yml` 的 `MARKETING_VERSION`（对外版本，现为 1.0）和 `CURRENT_PROJECT_VERSION`（构建号）。Info.plist 从这两项读取；每次上传 TestFlight 前把构建号加一，再跑 `xcodegen`。
+- **加密声明**：`ITSAppUsesNonExemptEncryption = NO`，App 只用 HTTPS 连 AI 服务商，免出口申报。
+- **隐私清单**：`App/Ginkgo/PrivacyInfo.xcprivacy`。不追踪；声明了 UserDefaults（理由 CA92.1，只读写 App 自己的设置）；「其他用户内容」不关联身份、只用于 App 功能，对应发给 AI 服务商的原文和问题。App Store Connect 里的 App 隐私信息要和它一致。
+- **发给 AI 前征得同意**（App 审核指南 5.1.2(i)）：每家服务商第一次发送前弹窗说明会发什么、发给谁（`ConsentText`），同意后记在 `ai.consent.<服务商>`。请求在 `NoteAI.perform` 里被拦下，放进 `ReaderModel.held`，同意后一起发出；取消则这些卡片显示「没有发送」，可以重试；删掉批注时一并丢弃。没填 key 时照旧报缺 key，不弹窗。设置页可以随时关掉，并链到服务商的隐私政策。设置页的「测试连接」只发一句固定的示例句子，不需要同意。
+- **隐私政策**：草稿在 `docs/privacy-policy.md`，上架前要放到公开网址并补联系方式。
+
 ## 测试
 
 - GinkgoKit：用 `swift test` 测锚点编码、页边排版、笔画分类、提示词拼装。AI 请求的编码和流式解析用 `URLProtocol` 打桩测试，不真的联网。

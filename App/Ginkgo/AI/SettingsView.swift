@@ -29,12 +29,15 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .onSubmit(saveKey)
                     modelMenu
+                    Toggle("允许把文字发给 \(settings.provider.displayName)", isOn: consent)
                 } header: {
                     Text("AI 服务")
                 } footer: {
                     VStack(alignment: .leading, spacing: Theme.Space.compact) {
-                        Text("Key 只保存在这台设备的钥匙串里，App 直接调用服务商，不经过任何中间服务器。")
+                        Text("Key 只保存在这台设备的钥匙串里。用 AI 时，选中的原文、前后几段文字、书名和你的问题会直接发给服务商，"
+                             + "不经过任何中间服务器；第一次发送前会先问你，关掉后下次用 AI 时会再问。")
                         Link("去 \(settings.provider.displayName) 创建 key", destination: settings.provider.keyPage)
+                        Link("\(settings.provider.displayName) 的隐私政策", destination: settings.provider.privacyPolicy)
                     }
                 }
 
@@ -119,6 +122,11 @@ struct SettingsView: View {
     }
 
     // MARK: Model menu
+
+    private var consent: Binding<Bool> {
+        Binding(get: { settings.hasConsent(for: settings.provider) },
+                set: { settings.setConsent($0, for: settings.provider) })
+    }
 
     private var current: String { settings.effectiveModel(for: settings.provider) }
 

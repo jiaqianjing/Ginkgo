@@ -53,6 +53,9 @@ final class ReaderModel {
     @ObservationIgnored var tasks: [UUID: Task<Void, Never>] = [:]
     /// What each note is waiting for from the AI beyond its first answer (key expressions, analysis, a follow-up).
     var busy: [UUID: NoteActivity] = [:]
+    /// Requests waiting for the reader to agree to send text to `askingConsent` (see NoteAI.swift).
+    @ObservationIgnored var held: [HeldRequest] = []
+    var askingConsent: AIProviderKind?
     @ObservationIgnored let pageInk = PageInk()
 
     private(set) var annotations: [AnnotationRecord] = []

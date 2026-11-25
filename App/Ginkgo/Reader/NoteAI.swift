@@ -171,6 +171,17 @@ extension ReaderModel {
                          failed: @escaping (String) -> Void) {
         tasks[id]?.cancel()
         busy[id] = activity
+        let settings = AISettings.shared
+        if settings.needsConsent {
+            let provider = settings.provider
+            hold(HeldRequest(note: id, send: { [weak self] in self?.perform(id, activity, work, failed: failed) },
+                             decline: { [weak self] in
+                                 failed("没有发送。同意把文字发给 \(provider.displayName) 后才能回答。")
+                                 self?.busy[id] = nil
+                                 try? self?.context.save()
+                             }), for: provider)
+            return
+        }
         tasks[id] = Task { [weak self] in
             do {
                 let (client, label) = try AISettings.shared.client()
@@ -192,12 +203,40 @@ extension ReaderModel {
         tasks[id]?.cancel()
         tasks[id] = nil
         busy[id] = nil
+        held.removeAll { $0.note == id }
+        if held.isEmpty { askingConsent = nil }
+    }
+
+    // MARK: Consent
+
+    /// Keeps a request until the reader answers. A newer request on the same note replaces the older one.
+    func hold(_ request: HeldRequest, for provider: AIProviderKind) {
+        held.removeAll { $0.note == request.note }
+        held.append(request)
+        askingConsent = provider
+    }
+
+    /// The reader's answer: agreeing sends everything held and isn't asked again for this service.
+    func answerConsent(_ agree: Bool) {
+        guard let provider = askingConsent else { return }
+        askingConsent = nil
+        let waiting = held
+        held = []
+        if agree { AISettings.shared.setConsent(true, for: provider) }
+        for request in waiting { agree ? request.send() : request.decline() }
     }
 
     private func passageContext(_ anchor: GinkgoCore.Anchor) -> PassageContext {
         PassageContext(bookTitle: book.title, passage: anchor.quote, surrounding: surroundingText(of: anchor),
                        readerLanguage: AISettings.shared.readerLanguage)
     }
+}
+
+/// An AI request held until the reader says whether text may go to the AI service.
+struct HeldRequest {
+    let note: UUID
+    let send: () -> Void
+    let decline: () -> Void
 }
 
 extension AnnotationRecord {
