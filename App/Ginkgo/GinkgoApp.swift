@@ -16,6 +16,7 @@ struct GinkgoApp: App {
                 .tint(Theme.accent)
                 .foregroundStyle(Theme.ink)
                 .task { await BookFiles.shared.start() }
+                .task { await CloudSchema.initializeIfRequested() }
         }
         .modelContainer(container)
     }

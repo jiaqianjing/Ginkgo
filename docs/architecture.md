@@ -89,7 +89,7 @@ Ginkgo/
   - **状态**：`SyncMonitor` 听 `NSPersistentCloudKitContainer` 的同步事件，设置页「同步」一栏显示未开启、正在同步、上次同步时间或错误。
   - **测试**：测试一律用 `Persistence.memoryContainer()`。有了 iCloud 权限后，不写 `cloudKitDatabase` 的配置默认会连 CloudKit。
   - **还没做**：别的设备改了正在打开的这本书，要关掉重开才能看到；同一页笔迹在两台设备上同时改，以后写的为准。
-  - **上架前**：在 CloudKit Console 把 Development 环境的结构部署到 Production。TestFlight 和 App Store 版本连的是 Production。
+  - **上架前**：在 CloudKit Console 把 Development 环境的结构部署到 Production。TestFlight 和 App Store 版本连的是 Production。同步只为上传过值的字段建结构，所以部署前先用调试版带 `-initCloudKitSchema YES` 启动一次（`Model/CloudSchema.swift`）：它在单独的临时库上调用 `initializeCloudKitSchema`，把所有记录类型和字段建到 Development，结果写进 `Application Support/cloudkit-schema.txt`，不碰真实书库。用 devicectl 启动时参数前要加 `--`。Production 的字段只能加不能删改，所以模型只加带默认值的新字段，每次加完重复「补全、部署」。2026-11-25 已在 iPad 上补全，并部署到 Production（`CD_AnnotationRecord` 38 个字段、`CD_Book` 22 个字段，与 Development 一致）。
 - **设置**：
   - 选择 AI 服务商、填 key、选模型。
   - 目标语言。
