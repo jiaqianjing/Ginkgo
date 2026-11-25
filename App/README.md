@@ -70,6 +70,7 @@ cd App && xcodegen && open Ginkgo.xcodeproj
 不用手动点也能截图检查（只在 Debug 构建里生效）：
 
 - `-inMemoryStore YES`：不碰真实书库。
+- `-initCloudKitSchema YES`：在 CloudKit Development 环境里建好全部记录类型和字段，部署到 Production 之前用，要在登录了 iCloud 的真机上跑。结果写在 `Application Support/cloudkit-schema.txt`。用 devicectl 启动时写成 `xcrun devicectl device process launch --device <id> com.kenjia.ginkgo -- -initCloudKitSchema YES`。
 - `-seedSample YES -openFirst YES`：导入示例章节并打开。
 - `-demoAnnotate YES`：自动加一条高亮和三条 AI 批注。AI 需要 key，可以用 `SIMCTL_CHILD_OPENAI_API_KEY` 传给模拟器。
 - `-demoMode review`：以回顾模式打开。
