@@ -63,5 +63,5 @@ Ginkgo Folio is a PDF reader; AI features use the reader's own API key (bring yo
 2. Select text and tap Translate, Explain or Ask. The first time, the app asks permission to send text to the chosen AI service; tap Agree and send.
 3. The answer appears as a card in the margin. Tap Follow up to continue in the side column.
 
-Test key: in Settings › AI service, choose SERVICE_NAME as the service, then paste this key: PASTE_KEY_HERE
+Test key: in Settings › AI service, choose Google Gemini as the service, then paste this key: PASTE_KEY_HERE
 No account or sign-in is required.
