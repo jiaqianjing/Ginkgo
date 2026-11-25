@@ -135,6 +135,7 @@ Ginkgo/
 
 ## 发版
 
+- **App Store Connect**：名称 Ginkgo Folio（主屏幕显示 Ginkgo），套装 ID `com.kenjia.ginkgo`，SKU `ginkgo-ios`，Apple ID 6839239946，主要语言英语（美国）。
 - **版本号**：`App/project.yml` 的 `MARKETING_VERSION`（对外版本，现为 1.0）和 `CURRENT_PROJECT_VERSION`（构建号）。Info.plist 从这两项读取；每次上传 TestFlight 前把构建号加一，再跑 `xcodegen`。
 - **加密声明**：`ITSAppUsesNonExemptEncryption = NO`，App 只用 HTTPS 连 AI 服务商，免出口申报。
 - **隐私清单**：`App/Ginkgo/PrivacyInfo.xcprivacy`。不追踪；声明了 UserDefaults（理由 CA92.1，只读写 App 自己的设置）；「其他用户内容」不关联身份、只用于 App 功能，对应发给 AI 服务商的原文和问题。App Store Connect 里的 App 隐私信息要和它一致。

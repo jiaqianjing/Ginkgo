@@ -18,6 +18,8 @@
 
 名字核查（2026-11-20）：Gloss、Scholia、Marginalia、Virgil 在 App Store 上都已经被阅读类 App 用了。其中「Gloss: Annotated Reader」的卖点是"划线后在页边生成解释"，**是直接竞品，需要持续关注**。
 
+**App Store 名字（2026-11-25）：Ginkgo Folio。** 单独的「Ginkgo」已被占用。folio 是书的一页，英文里一页也叫 leaf，和银杏叶双关，也呼应古人把银杏叶夹在书里防蠹的典故。主屏幕上仍显示「Ginkgo」（`CFBundleDisplayName`）。用途由副标题来讲。备选：Ginkgo Margins。
+
 ## 定下的决策
 
 1. **只做阅读器，不做书城。** 读的是用户自己的文件。买来带 DRM 的书不在范围内。
@@ -71,7 +73,7 @@ Ginkgo 不依赖 SwipeSay 的任何代码，两个项目各自保持干净。Swi
 
 ## 发布
 
-大概率上 App Store（iPad 优先）。这和 SwipeSay Mac 版的站外分发（Developer ID + Sparkle）是两条路。
+上 App Store（iPad 优先），只在海外上架。这和 SwipeSay Mac 版的站外分发（Developer ID + Sparkle）是两条路。App Store Connect 记录已于 2026-11-25 建好：名称 Ginkgo Folio，主要语言英语（美国），SKU `ginkgo-ios`，Apple ID 6839239946。现在 App 界面只有中文，面向英文用户前要先做英文界面。
 
 ## 原型
 
