@@ -41,8 +41,10 @@ private struct ReaderContent: View {
 
     var body: some View {
         GeometryReader { geo in
+            let conversation = model.expanded.flatMap { model.annotation($0) }
             let layout = ReaderLayout(size: geo.size,
-                                      sidebar: model.mode == .review || model.expanded != nil,
+                                      sidebar: model.mode == .review || conversation != nil,
+                                      conversation: conversation != nil,
                                       scratch: model.showScratch ? model.scratchWidth : 0)
             ZStack(alignment: .topLeading) {
                 HStack(spacing: 0) {
@@ -74,7 +76,7 @@ private struct ReaderContent: View {
                 }
 
                 Group {
-                    if layout.hasMarginColumn {
+                    if layout.hasMarginColumn, conversation == nil {
                         ConnectorLayer(model: model, layout: layout).allowsHitTesting(false)
                         if model.tool == .pen {
                             MarginInkCanvas(model: model, layout: layout)
@@ -82,12 +84,25 @@ private struct ReaderContent: View {
                                 .offset(x: layout.pageWidth)
                         }
                         SidenoteColumn(model: model, layout: layout)
-                    } else {
+                    } else if conversation == nil || model.mode == .reading {
+                        // With a conversation docked, other notes stay as tabs (and one floating card) on the page.
                         FoldedNotesLayer(model: model, layout: layout)
                     }
-                    if !layout.isWide, let id = model.expanded, let record = model.annotation(id) {
-                        ExpandedNotePanel(model: model, record: record, layout: layout)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    if let record = conversation {
+                        if layout.hasMarginColumn {
+                            ConversationPanel(model: model, record: record, width: layout.marginWidth, docked: true)
+                                .frame(height: geo.size.height)
+                                .overlay(alignment: .leading) { Rectangle().fill(Theme.rule).frame(width: Theme.hairline) }
+                                .offset(x: layout.pageWidth)
+                                .transition(.move(edge: .trailing))
+                        } else {
+                            ConversationPanel(model: model, record: record, width: layout.panelWidth, docked: false)
+                                .frame(height: geo.size.height - Theme.Space.large * 2)
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.panelRadius))
+                                .shadow(color: Theme.panelShadowColor, radius: Theme.panelShadow, x: Theme.panelShadowX)
+                                .frame(width: geo.size.width - Theme.rhythm, height: geo.size.height, alignment: .trailing)
+                                .transition(.move(edge: .trailing).combined(with: .opacity))
+                        }
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -148,7 +163,8 @@ private struct ReaderContent: View {
             .animation(.smooth(duration: 0.3), value: model.showScratch)
             .onChange(of: layout.hasMarginColumn) { _, _ in DispatchQueue.main.async { model.recompute() } }
         }
-        .ignoresSafeArea(edges: [.horizontal, .bottom])
+        // Only the container's edges: the keyboard still pushes content up, so the conversation box stays above it.
+        .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
         .background(Theme.desk)
         .toolbarVisibility(model.chromeVisible ? .visible : .hidden, for: .navigationBar)
         .statusBarHidden(!model.chromeVisible)

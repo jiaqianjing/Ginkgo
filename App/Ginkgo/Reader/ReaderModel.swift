@@ -33,14 +33,11 @@ struct MarkPreview {
 enum AskTarget: Identifiable {
     case selection(PDFSelection)
     case annotation(UUID)
-    /// A further question on a note that already has an answer.
-    case followUp(UUID)
 
     var id: String {
         switch self {
         case .selection(let s): "sel-\(s.string?.hashValue ?? 0)"
         case .annotation(let id): id.uuidString
-        case .followUp(let id): "more-\(id.uuidString)"
         }
     }
 }
@@ -86,8 +83,10 @@ final class ReaderModel {
         }
     }
     var collapsed: Set<UUID> = []
-    /// A note too long for its floating card, shown in full in the side column (or side panel in narrow windows).
+    /// The note whose conversation is open in the side column (a floating panel in narrow windows).
     var expanded: UUID?
+    /// The conversation was opened to ask something: its box takes the cursor.
+    var composeOnOpen = false
     var asking: AskTarget?
     var showSettings = false
     /// Transient line at the bottom of the page (see `show(notice:)`).
@@ -254,6 +253,11 @@ final class ReaderModel {
     }
 
     func toggle(_ id: UUID) {
+        // With a conversation open, another note's tab switches the conversation to that note.
+        if let expanded, expanded != id, annotation(id)?.hasNote == true {
+            openConversation(id)
+            return
+        }
         switch mode {
         case .review: if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
         case .reading: if peeked.contains(id) { peeked.remove(id) } else { peeked.insert(id) }
@@ -262,19 +266,15 @@ final class ReaderModel {
         focused = isOpen(id) ? id : nil
     }
 
-    /// Opens a long note in the side column.
-    func expand(_ id: UUID) {
-        peeked.insert(id)
-        collapsed.remove(id)
-        expanded = id
-        focused = id
-    }
+    /// Opens a note in full: its conversation in the side column.
+    func expand(_ id: UUID) { openConversation(id) }
 
     /// Closes floating cards and the side column opened while reading. Returns false if nothing was open.
     @discardableResult
     func foldAll() -> Bool {
         guard expanded != nil || (mode == .reading && !peeked.isEmpty) else { return false }
         expanded = nil
+        composeOnOpen = false
         if mode == .reading { peeked.removeAll() }
         focused = nil
         return true

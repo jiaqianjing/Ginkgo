@@ -324,3 +324,28 @@ struct MarkSegmentTests {
         #expect(model.peeked == [b])
     }
 }
+
+@MainActor struct ConversationTests {
+    @Test func followUpOpensTheNoteInTheSideColumn() throws {
+        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        defer { Library.delete(book, from: context) }
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        let model = ReaderModel(book: book, document: doc, context: context)
+        func note(_ text: String) throws -> AnnotationRecord {
+            let selection = try #require(doc.findString(text, withOptions: []).first)
+            let r = try #require(model.highlight(selection, color: .yellow, merge: false))
+            r.taskRaw = "explain"; r.replyText = "…"; r.replyState = .done
+            return r
+        }
+        let a = try note("living fossil"), b = try note("hibakujumoku")
+        model.peeked.insert(a.id)
+        model.openConversation(a.id, compose: true)
+        #expect(model.expanded == a.id && model.composeOnOpen)
+        #expect(!model.peeked.contains(a.id))  // no floating copy of what the column shows
+        model.toggle(b.id)
+        #expect(model.expanded == b.id)        // another note's tab switches the conversation
+        model.foldAll()
+        #expect(model.expanded == nil && !model.composeOnOpen)
+    }
+}

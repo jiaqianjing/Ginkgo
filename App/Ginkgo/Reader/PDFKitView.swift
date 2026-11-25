@@ -270,6 +270,9 @@ struct PDFKitView: UIViewRepresentable {
 final class ReaderPDFView: PDFView {
     var onLayout: (() -> Void)?
     private var lastWidth: CGFloat = 0
+    /// The line kept at the top while the width animates (see `layoutSubviews`).
+    private var resizeAnchor: (PDFPage, CGPoint)?
+    private var anchorRelease: DispatchWorkItem?
     let pencilInteraction = UIPencilInteraction()
 
     // First responder, so ⌘Z and the system three-finger undo gestures reach the window's undo manager.
@@ -336,12 +339,33 @@ final class ReaderPDFView: PDFView {
     override func layoutSubviews() {
         super.layoutSubviews()
         if bounds.width > 0, abs(bounds.width - lastWidth) > 0.5 {
+            let first = lastWidth == 0
             lastWidth = bounds.width
+            // Keep the line at the top of the view where it is while the side column opens or closes. The width
+            // changes over several layout passes as it animates, so the line is taken once, at the start, and the
+            // scroll offset is set directly (`go(to:)` lands a pass late, so the text drifted and jumped).
+            let top = CGPoint(x: bounds.midX, y: bounds.minY + safeAreaInsets.top)
+            if !first, resizeAnchor == nil, let page = page(for: top, nearest: true) {
+                resizeAnchor = (page, convert(top, to: page))
+            }
             let page = currentPage
             minScaleFactor = scaleFactorForSizeToFit * 0.5
             maxScaleFactor = scaleFactorForSizeToFit * 5
             scaleFactor = scaleFactorForSizeToFit
-            if let page { go(to: page) }
+            if let (anchorPage, point) = resizeAnchor, let scroll = firstSubview(of: UIScrollView.self) {
+                let now = convert(point, from: anchorPage)
+                var offset = scroll.contentOffset
+                offset.y += now.y - top.y
+                let maxY = max(scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom, -scroll.adjustedContentInset.top)
+                offset.y = min(max(offset.y, -scroll.adjustedContentInset.top), maxY)
+                scroll.setContentOffset(offset, animated: false)
+                anchorRelease?.cancel()
+                let release = DispatchWorkItem { [weak self] in self?.resizeAnchor = nil }
+                anchorRelease = release
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: release)
+            } else if first, let page {
+                go(to: page)
+            }
         }
         onLayout?()
     }

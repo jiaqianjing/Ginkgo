@@ -133,6 +133,8 @@ struct NoteCard: View {
     var floating = false
     /// Floating on the page: long answers are cut short and offer to open in the side column.
     var compact = false
+    /// Off in the conversation panel, which lays out the follow-up rounds itself and has its own box.
+    var showsThread = true
     @State private var fullHeight: CGFloat = 0
     @State private var shownHeight: CGFloat = 0
     @State private var showEarlier = false
@@ -167,8 +169,10 @@ struct NoteCard: View {
             answer
             if record.replyState == .done { studyParts }
             childLinks
-            followUps
-            footer
+            if showsThread {
+                followUps
+                footer
+            }
         }
         .padding(Theme.cardInset)
         .frame(width: width, alignment: .leading)
@@ -196,7 +200,7 @@ struct NoteCard: View {
             Button("复制回答", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
         }
         if canFollowUp {
-            Button("追问", systemImage: "arrow.turn.down.right") { model.asking = .followUp(record.id) }
+            Button("追问", systemImage: "arrow.turn.down.right") { withAnimation(.smooth(duration: 0.3)) { model.openConversation(record.id, compose: true) } }
         }
         Menu("换颜色", systemImage: "paintpalette") { colorChoices }
         Button("重新回答", systemImage: "arrow.clockwise") { model.retry(record.id) }
@@ -422,7 +426,7 @@ struct NoteCard: View {
         if canFollowUp || truncated {
             HStack(spacing: Theme.Space.regular) {
                 if canFollowUp {
-                    Button { model.asking = .followUp(record.id) } label: {
+                    Button { withAnimation(.smooth(duration: 0.3)) { model.openConversation(record.id, compose: true) } } label: {
                         Label("追问", systemImage: "arrow.turn.down.right")
                     }
                 }
@@ -568,42 +572,6 @@ struct NoteTab: View {
         .buttonStyle(.plain)
         .padding(-Theme.Space.small)
         .accessibilityLabel(active ? "收起\(record.taskLabel)批注" : "打开\(record.taskLabel)批注")
-    }
-}
-
-/// Narrow windows: a long note opens in a panel at the right edge, over the page, scrolling if it has to.
-struct ExpandedNotePanel: View {
-    let model: ReaderModel
-    let record: AnnotationRecord
-    let layout: ReaderLayout
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(record.anchor?.quote ?? "")
-                    .font(Theme.quoteFont)
-                    .foregroundStyle(Theme.secondaryInk)
-                    .lineLimit(2)
-                Spacer(minLength: Theme.rhythm)
-                Button { withAnimation(.smooth(duration: 0.3)) { model.expanded = nil } } label: {
-                    Image(systemName: "xmark").font(Theme.panelIconFont)
-                        .frame(width: Theme.panelControlSize, height: Theme.panelControlSize)
-                }
-                .accessibilityLabel("收起")
-            }
-            .padding(.horizontal, Theme.cardInset)
-            .padding(.vertical, Theme.rhythm)
-            ScrollView {
-                NoteCard(model: model, record: record, width: layout.panelWidth - Theme.cardInset * 2)
-                    .padding([.horizontal, .bottom], Theme.cardInset)
-            }
-        }
-        .frame(width: layout.panelWidth)
-        .frame(maxHeight: layout.size.height - Theme.Space.large * 2)
-        .fixedSize(horizontal: false, vertical: true)
-        .background(Theme.paper, in: RoundedRectangle(cornerRadius: Theme.panelRadius))
-        .shadow(color: Theme.panelShadowColor, radius: Theme.panelShadow, x: Theme.panelShadowX)
-        .frame(width: layout.size.width - Theme.rhythm, height: layout.size.height, alignment: .trailing)
     }
 }
 
@@ -803,11 +771,9 @@ struct AskSheet: View {
     private var quote: String {
         switch target {
         case .selection(let s): s.string ?? ""
-        case .annotation(let id), .followUp(let id): model.annotation(id)?.anchor?.quote ?? ""
+        case .annotation(let id): model.annotation(id)?.anchor?.quote ?? ""
         }
     }
-
-    private var isFollowUp: Bool { if case .followUp = target { true } else { false } }
 
     var body: some View {
         NavigationStack {
@@ -820,7 +786,7 @@ struct AskSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: Theme.cardRadius).fill(Theme.margin))
                     .overlay(alignment: .leading) { Rectangle().fill(Theme.accent.opacity(Theme.quoteRuleOpacity)).frame(width: Theme.noteRuleWidth) }
-                TextField(isFollowUp ? "比如：能再举个例子吗？" : "比如：这句话为什么这么说？", text: $question, axis: .vertical)
+                TextField("比如：这句话为什么这么说？", text: $question, axis: .vertical)
                     .lineLimit(2...6)
                     .focused($focused)
                     .textFieldStyle(.roundedBorder)
@@ -829,12 +795,12 @@ struct AskSheet: View {
             }
             .padding(Theme.Space.section)
             .background(Theme.paper)
-            .navigationTitle(isFollowUp ? "追问" : "向 AI 提问")
+            .navigationTitle("向 AI 提问")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(isFollowUp ? "追问" : "提问", action: send).disabled(question.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button("提问", action: send).disabled(question.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .onAppear { focused = true }
@@ -848,7 +814,6 @@ struct AskSheet: View {
         switch target {
         case .selection(let s): model.run(.ask(q), on: s)
         case .annotation(let id): model.run(.ask(q), on: id)
-        case .followUp(let id): model.followUp(q, on: id)
         }
         dismiss()
     }

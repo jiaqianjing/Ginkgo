@@ -127,6 +127,13 @@ enum Theme {
         static let shadowX: CGFloat = 2
         static let shadowY: CGFloat = 7
     }
+    /// A note's conversation in the side column.
+    enum Conversation {
+        static let fieldRadius: CGFloat = 18
+        static let bubbleRadius: CGFloat = 14
+        static let bubbleOpacity = 0.55
+        static let sendFont = Font.system(size: 28)
+    }
     enum Card {
         static let dotSize: CGFloat = 7
         /// Touch target around the colour dot, which opens the colour menu.
