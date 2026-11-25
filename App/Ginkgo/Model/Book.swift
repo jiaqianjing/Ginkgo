@@ -1,14 +1,14 @@
 import Foundation
 import SwiftData
 
-/// A PDF in the library. The file itself lives in `Library.directory`; this record holds what the UI needs
-/// without opening it. Every property has a default and relationships are optional so CloudKit sync can be
-/// switched on later without a migration.
+/// A PDF in the library. The file itself lives in iCloud Drive or the local library folder (`BookFiles`); this
+/// record holds what the UI needs without opening it and syncs through CloudKit, which is why every property has
+/// a default and relationships are optional.
 @Model
 final class Book {
     var id: UUID = UUID()
     var title: String = ""
-    /// File name inside `Library.directory`.
+    /// File name inside the book folder (`BookFiles`).
     var fileName: String = ""
     var addedAt: Date = Date.now
     var lastOpenedAt: Date?
@@ -28,7 +28,8 @@ final class Book {
         self.coverData = coverData
     }
 
-    var fileURL: URL { Library.directory.appending(path: fileName) }
+    /// Local until iCloud takes it (see `BookFiles`); may not be downloaded yet on a new device.
+    var fileURL: URL { BookFiles.url(for: fileName) }
 
     /// Most recently read first; books never opened sort by when they were added.
     var recency: Date { lastOpenedAt ?? addedAt }

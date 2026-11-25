@@ -9,11 +9,17 @@ struct ReaderView: View {
     @Environment(\.modelContext) private var context
     @State private var model: ReaderModel?
     @State private var missing = false
+    @State private var downloading = false
 
     var body: some View {
         Group {
             if let model {
                 ReaderContent(model: model)
+            } else if downloading {
+                VStack(spacing: Theme.Space.generous) {
+                    ProgressView()
+                    Text("正在从 iCloud 下载这本书…").font(Theme.calloutFont).foregroundStyle(Theme.secondaryInk)
+                }
             } else if missing {
                 ContentUnavailableView("找不到这本书的文件", systemImage: "exclamationmark.triangle",
                                        description: Text("文件可能已被删除。可以从书库里删掉它，再重新导入。"))
@@ -23,11 +29,21 @@ struct ReaderView: View {
         }
         .navigationTitle(book.title)
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: book.id) { open() }
+        .task(id: book.id) { await open() }
     }
 
-    private func open() {
+    private func open() async {
         guard model == nil else { return }
+        let files = BookFiles.shared
+        while !files.isReady(book.fileName) {
+            // Without iCloud a missing file is gone; with it, the file may still be on its way from another device.
+            if files.resolved && files.cloudDirectory == nil { missing = true; return }
+            downloading = true
+            files.download(book.fileName)
+            try? await Task.sleep(for: .seconds(1))
+            if Task.isCancelled { return }
+        }
+        downloading = false
         guard let document = PDFDocument(url: book.fileURL) else { missing = true; return }
         book.lastOpenedAt = .now
         model = ReaderModel(book: book, document: document, context: context)

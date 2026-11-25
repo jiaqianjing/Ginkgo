@@ -8,8 +8,7 @@ import UIKit
 @testable import Ginkgo
 
 @MainActor @Suite struct LibraryTests {
-    let context = ModelContext(try! ModelContainer(for: Persistence.schema,
-                                                   configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+    let context = ModelContext(try! Persistence.memoryContainer())
 
     @Test func importCopiesTheFileAndReadsItsPages() throws {
         let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
@@ -37,8 +36,7 @@ import UIKit
 }
 
 @MainActor @Suite struct ExportTests {
-    let context = ModelContext(try! ModelContainer(for: Persistence.schema,
-                                                   configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+    let context = ModelContext(try! Persistence.memoryContainer())
 
     @Test func markdownListsQuotesQuestionsAndAnswers() {
         let r = AnnotationRecord(kind: .highlight, anchor: .pdf(PDFAnchor(pageIndex: 2, rects: [], quote: "It hedges.")))
@@ -218,8 +216,7 @@ import UIKit
 }
 
 @MainActor struct NestingTests {
-    let context = ModelContext(try! ModelContainer(for: Persistence.schema,
-                                                   configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+    let context = ModelContext(try! Persistence.memoryContainer())
 
     func setUp() throws -> (Book, PDFDocument, ReaderModel) {
         let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
@@ -313,7 +310,7 @@ struct MarkSegmentTests {
 
 @MainActor struct OneCardTests {
     @Test func openingANoteClosesTheOneBefore() throws {
-        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let context = ModelContext(try Persistence.memoryContainer())
         let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
         defer { Library.delete(book, from: context) }
         let doc = try #require(PDFDocument(url: book.fileURL))
@@ -327,7 +324,7 @@ struct MarkSegmentTests {
 
 @MainActor struct ConversationTests {
     @Test func followUpOpensTheNoteInTheSideColumn() throws {
-        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let context = ModelContext(try Persistence.memoryContainer())
         let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
         defer { Library.delete(book, from: context) }
         let doc = try #require(PDFDocument(url: book.fileURL))
@@ -352,7 +349,7 @@ struct MarkSegmentTests {
 
 @MainActor struct EdgeSwipeTests {
     @Test func aPageWithNoNotesOnScreenIgnoresTheSwipe() throws {
-        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let context = ModelContext(try Persistence.memoryContainer())
         let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
         defer { Library.delete(book, from: context) }
         let doc = try #require(PDFDocument(url: book.fileURL))
@@ -367,7 +364,7 @@ struct MarkSegmentTests {
 
 @MainActor struct ConsentTests {
     private func model() throws -> (ReaderModel, Book, ModelContext) {
-        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let context = ModelContext(try Persistence.memoryContainer())
         let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
         let doc = try #require(PDFDocument(url: book.fileURL))
         return (ReaderModel(book: book, document: doc, context: context), book, context)

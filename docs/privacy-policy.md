@@ -7,16 +7,16 @@
 
 ## 简单说
 
-Ginkgo 没有自己的服务器，也没有账号系统。你的书、划线、批注和笔迹都只保存在你的设备上。只有你使用 AI 功能时，相关文字才会离开设备，直接发给你自己选的 AI 服务商。
+Ginkgo 没有自己的服务器，也没有账号系统。你的书、划线、批注和笔迹保存在你的设备上；如果你登录了 iCloud，还会同步到你自己的 iCloud。只有你使用 AI 功能时，相关文字才会发给你自己选的 AI 服务商。
 
-## 保存在设备上的内容
+## 保存在设备和你的 iCloud 里的内容
 
 - 你导入的 PDF 文件。
 - 划线、高亮、批注、AI 回答、手写笔迹和草稿纸。
 - 设置项：工具、颜色、AI 服务商、模型、回答语言、外语水平。
 - 你填写的 AI 服务 API key，保存在系统钥匙串里。
 
-这些内容不会上传给开发者。删除 App 时会一并删除。
+除 API key 和设置项以外，这些内容会通过 iCloud（CloudKit 私有数据库和 iCloud 云盘）同步到你登录同一个 Apple 账户的设备。这些数据存放在你自己的 iCloud 账户里，开发者无法访问。没有登录 iCloud 时只保存在本机。API key 只在本机钥匙串里，不同步。删除 App 会删除本机上的数据；iCloud 里的数据可以在系统设置的 iCloud 储存空间管理里删除。
 
 ## 发给 AI 服务商的内容
 
@@ -48,8 +48,9 @@ Ginkgo 没有自己的服务器，也没有账号系统。你的书、划线、�
 
 # Ginkgo Privacy Policy (draft)
 
-Ginkgo has no server and no accounts. Your books, marks, notes and handwriting stay on your device. Text leaves the device
-only when you use an AI feature, and then it goes straight to the AI service you chose (OpenAI, Anthropic or Google
+Ginkgo has no server and no accounts. Your books, marks, notes and handwriting stay on your device and, if you use
+iCloud, sync through your own private iCloud, which the developer cannot access. Text goes elsewhere only when you use
+an AI feature, and then it goes straight to the AI service you chose (OpenAI, Anthropic or Google
 Gemini), using your own API key: the passage you selected and the paragraphs around it, the book title, your question and
 earlier follow-ups, and your answer-language and learner-level settings. Ginkgo asks for your permission before the first
 request to each service; you can withdraw it in Settings › AI. The developer never receives or stores this text. Each

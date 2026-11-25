@@ -48,6 +48,16 @@ targets:
             LSHandlerRank: Alternate
             LSItemContentTypes: [com.adobe.pdf]
         LSSupportsOpeningDocumentsInPlace: false
+        # CloudKit pushes remote changes so the library updates while the app is open.
+        UIBackgroundModes: [remote-notification]
+    entitlements:
+      path: Ginkgo/Ginkgo.entitlements
+      properties:
+        aps-environment: development
+        com.apple.developer.icloud-container-identifiers: [iCloud.com.kenjia.ginkgo]
+        # CloudKit holds the library records; iCloud Drive (CloudDocuments) holds the PDF files.
+        com.apple.developer.icloud-services: [CloudKit, CloudDocuments]
+        com.apple.developer.ubiquity-container-identifiers: [iCloud.com.kenjia.ginkgo]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kenjia.ginkgo
