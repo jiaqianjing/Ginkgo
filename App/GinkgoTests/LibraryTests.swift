@@ -364,3 +364,49 @@ struct MarkSegmentTests {
         #expect(model.expanded == nil)
     }
 }
+
+@MainActor struct ConsentTests {
+    private func model() throws -> (ReaderModel, Book, ModelContext) {
+        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        return (ReaderModel(book: book, document: doc, context: context), book, context)
+    }
+
+    @Test func declinedRequestsFailAndAgreedOnesAreSent() throws {
+        let (model, book, context) = try model()
+        defer { Library.delete(book, from: context) }
+        let defaults = UserDefaults.standard
+        let key = AISettings.consentKey(.anthropic)
+        let before = defaults.object(forKey: key)
+        defer { defaults.set(before, forKey: key) }
+        defaults.removeObject(forKey: key)
+
+        var sent: [String] = [], declined: [String] = []
+        let a = UUID(), b = UUID()
+        model.hold(HeldRequest(note: a, send: { sent.append("a") }, decline: { declined.append("a") }), for: .anthropic)
+        // A newer request on the same note replaces the older one.
+        model.hold(HeldRequest(note: a, send: { sent.append("a2") }, decline: { declined.append("a2") }), for: .anthropic)
+        model.hold(HeldRequest(note: b, send: { sent.append("b") }, decline: { declined.append("b") }), for: .anthropic)
+        #expect(model.askingConsent == .anthropic)
+        model.answerConsent(false)
+        #expect(declined == ["a2", "b"] && sent.isEmpty)
+        #expect(model.askingConsent == nil && !AISettings.shared.hasConsent(for: .anthropic))
+
+        model.hold(HeldRequest(note: a, send: { sent.append("a") }, decline: {}), for: .anthropic)
+        model.answerConsent(true)
+        #expect(sent == ["a"] && AISettings.shared.hasConsent(for: .anthropic))
+    }
+
+    @Test func deletingANoteDropsItsHeldRequest() throws {
+        let (model, book, context) = try model()
+        defer { Library.delete(book, from: context) }
+        var sent = false
+        let id = UUID()
+        model.hold(HeldRequest(note: id, send: { sent = true }, decline: {}), for: .openAI)
+        model.cancelTask(id)
+        #expect(model.askingConsent == nil)
+        model.answerConsent(true)
+        #expect(!sent)
+    }
+}

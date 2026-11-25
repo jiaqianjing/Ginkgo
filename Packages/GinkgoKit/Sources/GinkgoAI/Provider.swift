@@ -23,6 +23,15 @@ public enum AIProviderKind: String, CaseIterable, Codable, Sendable, Identifiabl
         }
     }
 
+    /// How the service treats what is sent to its API, shown where the reader agrees to send passages.
+    public var privacyPolicy: URL {
+        switch self {
+        case .openAI: URL(string: "https://openai.com/policies/privacy-policy/")!
+        case .anthropic: URL(string: "https://www.anthropic.com/legal/privacy")!
+        case .gemini: URL(string: "https://ai.google.dev/gemini-api/terms")!
+        }
+    }
+
     public func client(apiKey: String, model: String, session: URLSession = .shared) -> AIClient {
         let model = model.trimmingCharacters(in: .whitespaces).isEmpty ? recommendedModel : model
         switch self {
