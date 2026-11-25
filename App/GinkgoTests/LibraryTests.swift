@@ -349,3 +349,18 @@ struct MarkSegmentTests {
         #expect(model.expanded == nil && !model.composeOnOpen)
     }
 }
+
+@MainActor struct EdgeSwipeTests {
+    @Test func aPageWithNoNotesOnScreenIgnoresTheSwipe() throws {
+        let context = ModelContext(try ModelContainer(for: Persistence.schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        defer { Library.delete(book, from: context) }
+        let doc = try #require(PDFDocument(url: book.fileURL))
+        let model = ReaderModel(book: book, document: doc, context: context)
+        let selection = try #require(doc.findString("living fossil", withOptions: []).first)
+        let note = try #require(model.highlight(selection, color: .yellow, merge: false))
+        note.taskRaw = "explain"; note.replyText = "…"; note.replyState = .done
+        model.revealSideColumn()  // no PDF view, so nothing is laid out on screen
+        #expect(model.expanded == nil)
+    }
+}

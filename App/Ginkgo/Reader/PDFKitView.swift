@@ -54,6 +54,19 @@ struct PDFKitView: UIViewRepresentable {
             center.addObserver(c, selector: #selector(Coordinator.undoChanged), name: name, object: nil)
         }
 
+        // A finger swiped in from the right edge of the page opens the side column. A plain pan that only starts
+        // near the edge and moving left: the system's edge pan needs touches the digitizer marks as edge touches,
+        // which also left the swipe unreliable just inside the bezel.
+        let edge = UIPanGestureRecognizer(target: c, action: #selector(Coordinator.edgeSwiped(_:)))
+        edge.maximumNumberOfTouches = 1
+        edge.name = "ginkgo.edge"
+        #if !targetEnvironment(simulator)
+        edge.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]  // fingers; a Pencil at the edge writes
+        #endif
+        edge.delegate = c
+        view.addGestureRecognizer(edge)
+        c.edgeGesture = edge
+
         let tap = UITapGestureRecognizer(target: c, action: #selector(Coordinator.tapped(_:)))
         tap.cancelsTouchesInView = false
         tap.delegate = c
@@ -74,6 +87,8 @@ struct PDFKitView: UIViewRepresentable {
         var onPageChange: (Int) -> Void
         private var observations: [NSKeyValueObservation] = []
         weak var markGesture: UIPanGestureRecognizer?
+        weak var edgeGesture: UIPanGestureRecognizer?
+        private var edgeHandled = false
         private var markStart: (page: PDFPage, point: CGPoint)?
 
         init(model: ReaderModel, onPageChange: @escaping (Int) -> Void) {
@@ -124,6 +139,21 @@ struct PDFKitView: UIViewRepresentable {
             withAnimation(.smooth(duration: 0.2)) { model.undo() }
         }
 
+        /// Opens the side column once the swipe has come far enough in from the edge (once per swipe).
+        @objc func edgeSwiped(_ gesture: UIPanGestureRecognizer) {
+            switch gesture.state {
+            case .began:
+                edgeHandled = false
+            case .changed, .ended:
+                if !edgeHandled, gesture.translation(in: gesture.view).x < -Theme.Conversation.edgeSwipe {
+                    edgeHandled = true
+                    withAnimation(.smooth(duration: 0.3)) { model.revealSideColumn() }
+                }
+            default:
+                break
+            }
+        }
+
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
             guard let view = gesture.view as? PDFView else { return }
             let point = gesture.location(in: view)
@@ -155,7 +185,13 @@ struct PDFKitView: UIViewRepresentable {
         }
 
         func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
-            g === markGesture ? model.marksLive : true
+            if g === edgeGesture, let pan = g as? UIPanGestureRecognizer, let view = g.view {
+                let start = pan.location(in: view).x - pan.translation(in: view).x
+                let v = pan.velocity(in: view)
+                return model.expanded == nil && start > view.bounds.width - Theme.Conversation.edgeZone
+                    && v.x < 0 && abs(v.x) > abs(v.y)
+            }
+            return g === markGesture ? model.marksLive : true
         }
 
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
@@ -393,3 +429,4 @@ extension UIResponder {
 
     @objc private func captureFirstResponder() { UIResponder.found = self }
 }
+

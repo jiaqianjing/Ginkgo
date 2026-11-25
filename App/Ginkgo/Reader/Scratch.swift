@@ -61,7 +61,9 @@ struct ScratchSheet: View {
     @State private var dragStart: CGFloat?
 
     var body: some View {
+        // iOS 26's back swipe works anywhere in the content, so a stroke drawn left to right would leave the book.
         VStack(spacing: 0) {
+            BackSwipeBlocker().frame(width: 0, height: 0)
             HStack(spacing: Theme.Space.small) {
                 Label("草稿", systemImage: "pencil.and.scribble")
                     .font(Theme.labelFont)
@@ -124,26 +126,6 @@ final class ScratchCanvasView: PKCanvasView {
 
     override var undoManager: UndoManager? { model?.scratchUndo ?? super.undoManager }
     override var canBecomeFirstResponder: Bool { true }
-
-    /// iOS 26's back swipe works anywhere in the content, so a stroke drawn left to right would leave the book.
-    /// It stays off while the sheet is open; the back button still works.
-    private weak var contentPop: UIGestureRecognizer?
-
-    override func willMove(toWindow newWindow: UIWindow?) {
-        super.willMove(toWindow: newWindow)
-        if newWindow == nil { contentPop?.isEnabled = true; contentPop = nil }
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        guard window != nil else { return }
-        DispatchQueue.main.async { [weak self] in
-            guard let self, window != nil else { return }
-            let nav = sequence(first: self as UIResponder, next: \.next).lazy.compactMap { $0 as? UINavigationController }.first
-            contentPop = nav?.interactiveContentPopGestureRecognizer
-            contentPop?.isEnabled = false
-        }
-    }
 
     /// The paper grows as the reader writes further down: always at least a screen below the last stroke.
     func fitContent() {

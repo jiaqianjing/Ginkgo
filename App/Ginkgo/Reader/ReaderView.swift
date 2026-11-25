@@ -165,6 +165,8 @@ private struct ReaderContent: View {
         }
         // Only the container's edges: the keyboard still pushes content up, so the conversation box stays above it.
         .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
+        // The right edge belongs to the reader first: a swipe in from it opens the side column.
+        .defersSystemGestures(on: .trailing)
         .background(Theme.desk)
         .toolbarVisibility(model.chromeVisible ? .visible : .hidden, for: .navigationBar)
         .statusBarHidden(!model.chromeVisible)

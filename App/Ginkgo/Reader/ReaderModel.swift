@@ -76,6 +76,7 @@ final class ReaderModel {
     var peeked: Set<UUID> = [] {
         didSet {
             let opened = peeked.subtracting(oldValue)
+            if let newest = opened.first { lastOpened = newest }
             if let newest = opened.first, peeked.count > 1 {
                 peeked = [newest]
                 if let expanded, expanded != newest { self.expanded = nil }
@@ -87,6 +88,8 @@ final class ReaderModel {
     var expanded: UUID?
     /// The conversation was opened to ask something: its box takes the cursor.
     var composeOnOpen = false
+    /// The note last opened as a card or conversation, for the swipe in from the right edge.
+    @ObservationIgnored var lastOpened: UUID?
     var asking: AskTarget?
     var showSettings = false
     /// Transient line at the bottom of the page (see `show(notice:)`).
