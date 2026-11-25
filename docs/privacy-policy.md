@@ -1,9 +1,9 @@
-# Ginkgo 隐私政策（草稿）
+# Ginkgo Folio 隐私政策（中文底稿）
 
 > 已发布（2026-11-25）：https://jiaqianjing.github.io/apple_app_site/ginkgo/privacy.html ，支持页 https://jiaqianjing.github.io/apple_app_site/ginkgo/ 。
 > 页面源文件在 `jiaqianjing/apple_app_site` 仓库的 `ginkgo/` 目录，英文在前、中文在后，以那里为准；这份是中文底稿，改动时两边一起改。
 
-最后更新：（发布时填写）
+最后更新：2026-11-25
 
 ## 简单说
 
@@ -42,7 +42,7 @@ Ginkgo 没有自己的服务器，也没有账号系统。你的书、划线、�
 
 ## 联系
 
-（联系方式待填）
+jiaqianjing@gmail.com
 
 ---
 
