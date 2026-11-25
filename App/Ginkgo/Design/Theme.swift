@@ -133,6 +133,12 @@ enum Theme {
         static let bubbleRadius: CGFloat = 14
         static let bubbleOpacity = 0.55
         static let sendFont = Font.system(size: 28)
+        /// Width of the strip along the right edge where the swipe that opens the column can start.
+        static let edgeZone: CGFloat = 24
+        /// How far a finger has to come in from the right edge to open the column.
+        static let edgeSwipe: CGFloat = 40
+        /// How far a swipe to the right has to go to close it.
+        static let dismissSwipe: CGFloat = 90
     }
     enum Card {
         static let dotSize: CGFloat = 7
