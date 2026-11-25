@@ -17,9 +17,9 @@ struct NotesPanel: View {
         var id: String { rawValue }
         var label: String {
             switch self {
-            case .all: "全部"
-            case .notes: "AI 批注"
-            case .highlights: "高亮"
+            case .all: String(localized: "全部")
+            case .notes: String(localized: "AI 批注")
+            case .highlights: String(localized: "高亮")
             }
         }
     }
@@ -137,7 +137,7 @@ private struct NoteRow: View {
                 if let reply = record.replyText, !reply.isEmpty {
                     Text(reply).font(Theme.footnoteFont).foregroundStyle(Theme.secondaryInk).lineLimit(4)
                 } else if record.replyState == .failed {
-                    Text(record.replyError ?? "没有拿到回答").font(Theme.footnoteFont).foregroundStyle(Theme.error).lineLimit(2)
+                    Text(record.replyError ?? String(localized: "没有拿到回答")).font(Theme.footnoteFont).foregroundStyle(Theme.error).lineLimit(2)
                 }
             }
         }

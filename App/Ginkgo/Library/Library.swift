@@ -18,8 +18,8 @@ enum Library {
 
         var errorDescription: String? {
             switch self {
-            case .unreadable(let name): "「\(name)」不是可以打开的 PDF。"
-            case .locked(let name): "「\(name)」有密码保护，暂时不能导入。"
+            case .unreadable(let name): String(localized: "「\(name)」不是可以打开的 PDF。")
+            case .locked(let name): String(localized: "「\(name)」有密码保护，暂时不能导入。")
             }
         }
     }
@@ -60,10 +60,10 @@ enum Library {
         /// e.g. "12 条高亮和划线、3 条 AI 批注、2 页笔迹".
         var summary: String {
             var parts: [String] = []
-            if highlights > 0 { parts.append("\(highlights) 条高亮和划线") }
-            if notes > 0 { parts.append("\(notes) 条 AI 批注") }
-            if inkPages > 0 { parts.append("\(inkPages) 页笔迹") }
-            return parts.joined(separator: "、")
+            if highlights > 0 { parts.append(String(localized: "\(highlights) 条高亮和划线")) }
+            if notes > 0 { parts.append(String(localized: "\(notes) 条 AI 批注")) }
+            if inkPages > 0 { parts.append(String(localized: "\(inkPages) 页笔迹")) }
+            return parts.joined(separator: String(localized: "、"))
         }
     }
 

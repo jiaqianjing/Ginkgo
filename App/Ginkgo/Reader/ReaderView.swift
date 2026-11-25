@@ -190,7 +190,7 @@ private struct ReaderContent: View {
         .sheet(item: $model.asking) { AskSheet(model: model, target: $0) }
         .sheet(isPresented: $model.showSettings, onDismiss: model.refreshFingerInput) { SettingsView() }
         // Buttons answer it; the binding never dismisses on its own, so a tap can't count as both answers.
-        .alert(model.askingConsent.map { "把文字发给 \($0.displayName)？" } ?? "",
+        .alert(model.askingConsent.map { String(localized: "把文字发给 \($0.displayName)？") } ?? "",
                isPresented: Binding(get: { model.askingConsent != nil }, set: { _ in }),
                presenting: model.askingConsent) { _ in
             Button("同意并发送") { model.answerConsent(true) }

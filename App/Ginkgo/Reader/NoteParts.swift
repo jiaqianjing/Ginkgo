@@ -85,7 +85,7 @@ struct KeyItemsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.compact) {
-            NoteParts.heading("重点表达")
+            NoteParts.heading(String(localized: "重点表达"))
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline, spacing: Theme.Space.compact) {
@@ -119,7 +119,7 @@ struct AnalysisView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.compact) {
-            NoteParts.heading("语法分析")
+            NoteParts.heading(String(localized: "语法分析"))
             if let skeleton = analysis.skeleton, !skeleton.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("主干").font(Theme.captionFont).foregroundStyle(Theme.secondaryInk)
@@ -188,9 +188,9 @@ struct FollowUpView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             } else if waiting {
-                NoteParts.progress("正在思考…")
+                NoteParts.progress(String(localized: "正在思考…"))
             } else if let retry {
-                NoteParts.failure(turn.error ?? "没有拿到回答。", retry: retry)
+                NoteParts.failure(turn.error ?? String(localized: "没有拿到回答。"), retry: retry)
             }
         }
     }

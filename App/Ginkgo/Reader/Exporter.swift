@@ -8,23 +8,26 @@ import UIKit
 /// Turns a book's annotations into files that leave the app: Markdown notes, and a PDF with standard annotations
 /// (highlights, ink, and text notes carrying the AI answers) that any PDF reader can show.
 enum Exporter {
+    /// "：" in Chinese, ": " in English.
+    private static var colon: String { String(localized: "：") }
+
     /// Notes in reading order: quote, page, what was asked and the answer.
     static func markdown(title: String, annotations: [AnnotationRecord]) -> String {
         var out = "# \(title)\n\n"
         let marks = annotations.filter { $0.kind != .ink }
-        if marks.isEmpty { return out + "_还没有批注。_\n" }
+        if marks.isEmpty { return out + "_" + String(localized: "还没有批注。") + "_\n" }
         for record in marks {
             guard case .pdf(let a)? = record.anchor else { continue }
             let quote = a.quote.replacingOccurrences(of: "\n", with: " ")
-            out += "> \(quote)\n>\n> — 第 \(a.pageIndex + 1) 页\n\n"
+            out += "> \(quote)\n>\n> — " + String(localized: "第 \(a.pageIndex + 1) 页") + "\n\n"
             if record.hasNote {
                 var label = "**\(record.taskLabel)**"
-                if let q = record.question, !q.isEmpty { label += "：\(q)" }
+                if let q = record.question, !q.isEmpty { label += colon + q }
                 out += label + "\n\n"
                 if let reply = record.replyText, !reply.isEmpty { out += reply + "\n\n" }
                 out += studyMarkdown(record.study)
                 for turn in record.thread where !turn.answer.isEmpty {
-                    out += "**追问**：\(turn.question)\n\n\(turn.answer)\n\n"
+                    out += "**" + String(localized: "追问") + "**" + colon + "\(turn.question)\n\n\(turn.answer)\n\n"
                 }
             }
             out += "---\n\n"
@@ -36,15 +39,15 @@ enum Exporter {
     static func studyMarkdown(_ study: StudyNote) -> String {
         var out = ""
         if let items = study.keyItems?.items, !items.isEmpty {
-            out += "**重点表达**\n\n"
+            out += "**" + String(localized: "重点表达") + "**\n\n"
             for item in items {
-                out += "- \(item.text)" + (item.meaning.map { "：\($0)" } ?? "")
-                if let note = item.note, !note.isEmpty { out += "（\(note)）" }
+                out += "- \(item.text)" + (item.meaning.map { colon + $0 } ?? "")
+                if let note = item.note, !note.isEmpty { out += String(localized: "（\(note)）") }
                 out += "\n"
             }
             out += "\n"
         }
-        if let analysis = study.analysis { out += "**语法分析**\n\n\(analysis.summary)\n\n" }
+        if let analysis = study.analysis { out += "**" + String(localized: "语法分析") + "**\n\n\(analysis.summary)\n\n" }
         return out
     }
 
@@ -76,19 +79,20 @@ enum Exporter {
                                              forType: .text, withProperties: nil)
                     note.color = color
                     var text = record.taskLabel
-                    if let q = record.question, !q.isEmpty { text += "：\(q)" }
+                    if let q = record.question, !q.isEmpty { text += colon + q }
                     if let reply = record.replyText, !reply.isEmpty { text += "\n\n\(reply)" }
                     if let items = record.study.keyItems?.items, !items.isEmpty {
-                        text += "\n\n重点表达：\n" + items.map { "- \($0.text)" + ($0.meaning.map { "：\($0)" } ?? "") }.joined(separator: "\n")
+                        text += "\n\n" + String(localized: "重点表达") + colon + "\n"
+                            + items.map { "- \($0.text)" + ($0.meaning.map { colon + $0 } ?? "") }.joined(separator: "\n")
                     }
-                    if let analysis = record.study.analysis { text += "\n\n语法分析：\n\(analysis.summary)" }
-                    for turn in record.thread where !turn.answer.isEmpty { text += "\n\n追问：\(turn.question)\n\(turn.answer)" }
+                    if let analysis = record.study.analysis { text += "\n\n" + String(localized: "语法分析") + colon + "\n\(analysis.summary)" }
+                    for turn in record.thread where !turn.answer.isEmpty { text += "\n\n" + String(localized: "追问") + colon + "\(turn.question)\n\(turn.answer)" }
                     note.contents = text
                     page.addAnnotation(note)
                 }
             }
         }
-        let url = exportURL(book.title + "（批注）", ext: "pdf")
+        let url = exportURL(String(localized: "\(book.title)（批注）"), ext: "pdf")
         guard document.write(to: url) else { throw CocoaError(.fileWriteUnknown) }
         return url
     }

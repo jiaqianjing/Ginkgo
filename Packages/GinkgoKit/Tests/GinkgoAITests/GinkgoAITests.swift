@@ -2,6 +2,11 @@ import Foundation
 import Testing
 @testable import GinkgoAI
 
+/// Pins the package's UI text to one language, so expectations don't depend on the machine's settings.
+func inLanguage<T>(_ language: String, _ body: () throws -> T) rethrows -> T {
+    try L10n.$language.withValue(language, operation: body)
+}
+
 @Suite struct SSEParserTests {
     @Test func joinsFieldsUntilABlankLine() {
         var p = SSEParser()
@@ -101,23 +106,25 @@ struct LiveProviderTests {
     @Test func quotaWithRetryHintIsShortChinese() {
         let gemini = "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. * Quota exceeded for metric: generate_content_free_tier_requests, limit: 20\nPlease retry in 14382.5s."
         let error = AIError.http(status: 429, message: gemini)
-        #expect(error.errorDescription == "额度用完了，约 4 小时后可以再试。")
+        #expect(inLanguage("zh-Hans") { error.errorDescription } == "额度用完了，约 4 小时后可以再试。")
+        #expect(inLanguage("en") { error.errorDescription } == "Quota used up. Try again in about 4 h.")
         #expect(error.detail == gemini)
     }
 
     @Test func rateLimitWithoutHint() {
-        #expect(AIError.http(status: 429, message: "Rate limit reached").errorDescription == "请求太频繁，稍后再试。")
-        #expect(AIError.http(status: 429, message: "Please try again in 20s").errorDescription == "请求太频繁，约 20 秒后可以再试。")
+        #expect(inLanguage("zh-Hans") { AIError.http(status: 429, message: "Rate limit reached").errorDescription } == "请求太频繁，稍后再试。")
+        #expect(inLanguage("zh-Hans") { AIError.http(status: 429, message: "Please try again in 20s").errorDescription } == "请求太频繁，约 20 秒后可以再试。")
+        #expect(inLanguage("en") { AIError.http(status: 429, message: "Please try again in 20s").errorDescription } == "Too many requests. Try again in about 20 s.")
     }
 
     @Test func authErrorKeepsSettingsHintAndDropsDetail() {
-        let text = AIError.http(status: 401, message: String(repeating: "x", count: 500)).errorDescription ?? ""
+        let text = inLanguage("zh-Hans") { AIError.http(status: 401, message: String(repeating: "x", count: 500)).errorDescription } ?? ""
         #expect(text.contains("API key"))
         #expect(text.count < 40)
     }
 
     @Test func unknownStatusClipsProviderMessage() {
-        let text = AIError.http(status: 400, message: String(repeating: "a", count: 300) + "\nmore").errorDescription ?? ""
+        let text = inLanguage("zh-Hans") { AIError.http(status: 400, message: String(repeating: "a", count: 300) + "\nmore").errorDescription } ?? ""
         #expect(text.count < 100)
         #expect(text.hasSuffix("…"))
     }
@@ -180,8 +187,9 @@ struct LiveProviderTests {
 
     @Test func latencySummaryReadsInSeconds() {
         let l = AnswerLatency(firstWord: .milliseconds(620), total: .milliseconds(1440))
-        #expect(l.summary == "首字 0.6 秒 · 完成 1.4 秒")
-        #expect(AnswerLatency.seconds(.seconds(12.4)) == "12 秒")
+        #expect(inLanguage("zh-Hans") { l.summary } == "首字 0.6 秒 · 完成 1.4 秒")
+        #expect(inLanguage("en") { l.summary } == "First word 0.6 s · done 1.4 s")
+        #expect(inLanguage("zh-Hans") { AnswerLatency.seconds(.seconds(12.4)) } == "12 秒")
     }
 }
 
@@ -206,7 +214,8 @@ struct LiveProviderTests {
         let card = try StudyJSON.decode(WordCard.self, from: text)
         #expect(card.term == "hedge")
         #expect(card.contextMeaning == "分散风险")
-        #expect(card.summary.contains("这里的意思：分散风险"))
+        #expect(inLanguage("zh-Hans") { card.summary }.contains("这里的意思：分散风险"))
+        #expect(inLanguage("en") { card.summary }.contains("Here: 分散风险"))
         #expect(throws: AIError.badFormat) { try StudyJSON.decode(WordCard.self, from: "no json here") }
     }
 
@@ -216,7 +225,8 @@ struct LiveProviderTests {
         note.analysisError = "x"
         let back = StudyJSON.load(StudyNote.self, from: StudyJSON.encode(note))
         #expect(back == note)
-        #expect(back?.keyItems?.items.first?.kindLabel == "搭配")
+        #expect(inLanguage("zh-Hans") { back?.keyItems?.items.first?.kindLabel } == "搭配")
+        #expect(inLanguage("en") { back?.keyItems?.items.first?.kindLabel } == "collocation")
         let parsed = try StudyJSON.decode(KeyItems.self, from: #"{"items":[],"analysis_worthy":false,"analysis_hint":""}"#)
         #expect(parsed.analysisWorthy == false)
     }

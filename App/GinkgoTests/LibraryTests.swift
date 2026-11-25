@@ -407,3 +407,25 @@ struct MarkSegmentTests {
         #expect(!sent)
     }
 }
+
+@MainActor struct LocalizationTests {
+    /// The app's English strings, whatever language the test run is pinned to.
+    private var english: Bundle {
+        get throws { try #require(Bundle.main.path(forResource: "en", ofType: "lproj").flatMap(Bundle.init(path:))) }
+    }
+
+    /// Plural rules follow the locale (Chinese has no singular), so the English ones need an English locale.
+    @Test func englishHasTranslationsAndPlurals() throws {
+        let en = try english
+        #expect(String(localized: "书库", bundle: en) == "Library")
+        #expect(String(localized: "把文字发给 \("OpenAI")？", bundle: en) == "Send text to OpenAI?")
+        #expect(String(localized: "\(1) 条 AI 批注", bundle: en, locale: Locale(identifier: "en")) == "1 AI note")
+        #expect(String(localized: "\(3) 条 AI 批注", bundle: en, locale: Locale(identifier: "en")) == "3 AI notes")
+        #expect(String(localized: "读到第 \(4) / \(10) 页", bundle: en) == "Page 4 of 10")
+    }
+
+    @Test func bothLanguagesShip() {
+        #expect(Set(Bundle.main.localizations).isSuperset(of: ["en", "zh-Hans"]))
+        #expect(Bundle.main.developmentLocalization == "en")
+    }
+}

@@ -157,7 +157,7 @@ private struct ConversationTurn: View {
             } else if waiting {
                 ThinkingDots(color: color.ink)
             } else if let retry {
-                NoteParts.failure(turn.error ?? "没有拿到回答。", retry: retry)
+                NoteParts.failure(turn.error ?? String(localized: "没有拿到回答。"), retry: retry)
             }
         }
         .frame(width: width, alignment: .leading)

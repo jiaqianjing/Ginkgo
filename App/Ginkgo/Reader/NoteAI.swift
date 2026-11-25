@@ -15,7 +15,7 @@ extension ReaderModel {
     func run(_ task: AITask, on id: UUID) {
         guard let record = annotation(id), let anchor = record.anchor else { return }
         let before = AnnotationSnapshot(record)
-        registerUndo("AI 批注") { $0.revert(to: before) }
+        registerUndo(String(localized: "AI 批注")) { $0.revert(to: before) }
         record.taskRaw = task.tag
         switch task {
         case .ask(let q), .handwritten(let q): record.question = q
@@ -92,7 +92,7 @@ extension ReaderModel {
         let question = question.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !question.isEmpty, let record = annotation(id), let anchor = record.anchor, record.replyState == .done else { return }
         let before = AnnotationSnapshot(record)
-        registerUndo("追问") { $0.revert(to: before, name: "追问") }
+        registerUndo(String(localized: "追问")) { $0.revert(to: before, name: String(localized: "追问")) }
         let history = record.thread.filter { $0.error == nil }
         record.thread = history + [FollowUp(question: question)]
         peeked.insert(id)
@@ -176,7 +176,7 @@ extension ReaderModel {
             let provider = settings.provider
             hold(HeldRequest(note: id, send: { [weak self] in self?.perform(id, activity, work, failed: failed) },
                              decline: { [weak self] in
-                                 failed("没有发送。同意把文字发给 \(provider.displayName) 后才能回答。")
+                                 failed(String(localized: "没有发送。同意把文字发给 \(provider.displayName) 后才能回答。"))
                                  self?.busy[id] = nil
                                  try? self?.context.save()
                              }), for: provider)

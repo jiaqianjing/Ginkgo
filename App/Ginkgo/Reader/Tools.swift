@@ -20,11 +20,11 @@ enum PenTool: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .highlighter: "荧光笔"
-        case .underline: "划线"
-        case .lasso: "圈选"
-        case .pen: "钢笔"
-        case .eraser: "橡皮"
+        case .highlighter: String(localized: "荧光笔")
+        case .underline: String(localized: "划线")
+        case .lasso: String(localized: "圈选")
+        case .pen: String(localized: "钢笔")
+        case .eraser: String(localized: "橡皮")
         }
     }
 
@@ -79,7 +79,7 @@ enum InkColor: String, CaseIterable, Identifiable {
 
     var name: String {
         switch self {
-        case .graphite: "墨"
+        case .graphite: String(localized: "墨")
         default: (HighlightColor(rawValue: rawValue) ?? .blue).name
         }
     }
@@ -153,9 +153,9 @@ enum FingerInput: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .system: "跟随系统设置"
-        case .draw: "手指也能用工具"
-        case .pencilOnly: "只用 Apple Pencil"
+        case .system: String(localized: "跟随系统设置")
+        case .draw: String(localized: "手指也能用工具")
+        case .pencilOnly: String(localized: "只用 Apple Pencil")
         }
     }
 
@@ -312,13 +312,13 @@ struct ToolTray: View {
         }
         if tool.usesMarkColor {
             ForEach(HighlightColor.allCases, id: \.self) { c in
-                swatch(fill: tool == .highlighter ? c.fill : Theme.markLine(c), selected: model.markColor == c, label: "\(c.name)色") {
+                swatch(fill: tool == .highlighter ? c.fill : Theme.markLine(c), selected: model.markColor == c, label: String(localized: "\(c.name)色")) {
                     model.markColor = c
                 }
             }
         } else if tool == .pen {
             ForEach(InkColor.allCases) { c in
-                swatch(fill: c.color, selected: model.inkColor == c, label: "\(c.name)色") { model.inkColor = c }
+                swatch(fill: c.color, selected: model.inkColor == c, label: String(localized: "\(c.name)色")) { model.inkColor = c }
             }
         }
     }
@@ -513,11 +513,11 @@ struct SqueezePalette: View {
             .accessibilityLabel(style == .underline ? "直线" : "波浪线")
             .accessibilityAddTraits(on ? .isSelected : [])
         case .mark(let c):
-            swatch(model.tool == .highlighter ? c.fill : Theme.markLine(c), selected: model.markColor == c, label: "\(c.name)色") {
+            swatch(model.tool == .highlighter ? c.fill : Theme.markLine(c), selected: model.markColor == c, label: String(localized: "\(c.name)色")) {
                 model.markColor = c; close()
             }
         case .ink(let c):
-            swatch(c.color, selected: model.inkColor == c, label: "\(c.name)色") { model.inkColor = c; close() }
+            swatch(c.color, selected: model.inkColor == c, label: String(localized: "\(c.name)色")) { model.inkColor = c; close() }
         case .tool:
             EmptyView()
         }

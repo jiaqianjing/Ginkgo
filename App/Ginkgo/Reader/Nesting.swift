@@ -97,8 +97,8 @@ extension ReaderModel {
                 collapsed.remove(record.id)
                 focused = record.id
             }
-        case .translate: followUp("把这段翻译一下。", on: record.id)
-        case .explain: followUp("解释一下这段。", on: record.id)
+        case .translate: followUp(String(localized: "把这段翻译一下。"), on: record.id)
+        case .explain: followUp(String(localized: "解释一下这段。"), on: record.id)
         case .ask(let q), .handwritten(let q): followUp(q, on: record.id)
         }
     }

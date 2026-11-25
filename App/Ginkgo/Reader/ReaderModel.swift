@@ -11,7 +11,7 @@ import SwiftUI
 enum ViewMode: String, CaseIterable, Identifiable {
     case reading, review
     var id: String { rawValue }
-    var label: String { self == .reading ? "阅读" : "回顾" }
+    var label: String { self == .reading ? String(localized: "阅读") : String(localized: "回顾") }
 }
 
 /// Screen geometry of one annotation, in reader coordinates (the PDF view's coordinate space).
@@ -206,7 +206,7 @@ final class ReaderModel {
     func eraseMark(at point: CGPoint) {
         guard let id = annotation(at: point), let record = annotation(id), record.kind != .ink else { return }
         guard !record.hasNote else {
-            show(notice: "带批注的划线不会被擦掉，点开卡片用垃圾桶删除")
+            show(notice: String(localized: "带批注的划线不会被擦掉，点开卡片用垃圾桶删除"))
             return
         }
         withAnimation(.smooth(duration: 0.15)) { delete(id) }
@@ -307,7 +307,7 @@ final class ReaderModel {
         if style != .highlight { record.styleRaw = style.rawValue }
         record.book = book
         context.insert(record)
-        registerRemoval(of: record.id, name: style == .highlight ? "高亮" : "划线")
+        registerRemoval(of: record.id, name: style == .highlight ? String(localized: "高亮") : String(localized: "划线"))
         // Only end the selection this highlight came from (a margin note may land while another is showing).
         if selection === self.selection { clearSelection() }
         reload()
@@ -318,7 +318,7 @@ final class ReaderModel {
         guard let record = annotation(id), record.color != color else { return }
         let old = record.color
         record.colorRaw = color.rawValue
-        registerUndo("换颜色") { $0.recolor(id, old) }
+        registerUndo(String(localized: "换颜色")) { $0.recolor(id, old) }
         reload()
     }
 
@@ -326,7 +326,7 @@ final class ReaderModel {
         cancelTask(id)
         if let record = annotation(id) {
             let snapshot = AnnotationSnapshot(record)
-            registerUndo("删除批注") { $0.restore(snapshot) }
+            registerUndo(String(localized: "删除批注")) { $0.restore(snapshot) }
             context.delete(record)
         }
         focused = nil
@@ -343,7 +343,7 @@ final class ReaderModel {
         guard let record = annotation(id), record.kind == .highlight, record.hasNote else { return }
         cancelTask(id)
         let before = AnnotationSnapshot(record)
-        registerUndo("删除批注") { $0.revert(to: before, name: "删除批注") }
+        registerUndo(String(localized: "删除批注")) { $0.revert(to: before, name: String(localized: "删除批注")) }
         record.taskRaw = nil
         record.question = nil
         record.replyText = nil
@@ -405,9 +405,9 @@ final class ReaderModel {
         record.inkData = ink.dataRepresentation()
         let text = recognized.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty {
-            record.question = "（没认出手写内容）"
+            record.question = String(localized: "（没认出手写内容）")
             run(.explain, on: record.id)
-            record.question = "（没认出手写内容）"
+            record.question = String(localized: "（没认出手写内容）")
         } else {
             run(.handwritten(text), on: record.id)
         }
@@ -511,11 +511,11 @@ extension HighlightColor {
 
     var name: String {
         switch self {
-        case .yellow: "黄"
-        case .green: "绿"
-        case .blue: "蓝"
-        case .pink: "粉"
-        case .violet: "紫"
+        case .yellow: String(localized: "黄")
+        case .green: String(localized: "绿")
+        case .blue: String(localized: "蓝")
+        case .pink: String(localized: "粉")
+        case .violet: String(localized: "紫")
         }
     }
 }

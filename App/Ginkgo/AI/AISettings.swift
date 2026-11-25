@@ -24,7 +24,8 @@ final class AISettings {
     /// Bumped when a key changes so views re-read `hasKey`.
     private(set) var keyRevision = 0
 
-    static let languages = ["简体中文", "繁體中文", "English", "日本語", "한국어", "Français", "Deutsch", "Español"]
+    // Each language in its own name, whatever the interface language. l10n-ignore
+    static let languages = ["简体中文", "繁體中文", "English", "日本語", "한국어", "Français", "Deutsch", "Español"]  // l10n-ignore
 
     private init() {
         provider = AIProviderKind(rawValue: defaults.string(forKey: "ai.provider") ?? "") ?? .openAI
@@ -43,8 +44,8 @@ final class AISettings {
     static func sameLanguage(_ language: NLLanguage, _ reader: String) -> Bool {
         switch reader {
         // A short CJK word is easily taken for Japanese or the other Chinese script; only kana makes it Japanese.
-        case "简体中文", "繁體中文": [.simplifiedChinese, .traditionalChinese].contains(language)
-        case "日本語": language == .japanese
+        case "简体中文", "繁體中文": [.simplifiedChinese, .traditionalChinese].contains(language)  // l10n-ignore
+        case "日本語": language == .japanese  // l10n-ignore
         case "한국어": language == .korean
         case "Français": language == .french
         case "Deutsch": language == .german
@@ -118,9 +119,9 @@ final class AISettings {
 
     private static var systemLanguage: String {
         let id = Locale.preferredLanguages.first ?? "zh-Hans"
-        if id.hasPrefix("zh-Hant") || id.hasPrefix("zh-TW") || id.hasPrefix("zh-HK") { return "繁體中文" }
-        if id.hasPrefix("zh") { return "简体中文" }
-        if id.hasPrefix("ja") { return "日本語" }
+        if id.hasPrefix("zh-Hant") || id.hasPrefix("zh-TW") || id.hasPrefix("zh-HK") { return "繁體中文" }  // l10n-ignore
+        if id.hasPrefix("zh") { return "简体中文" }  // l10n-ignore
+        if id.hasPrefix("ja") { return "日本語" }  // l10n-ignore
         if id.hasPrefix("ko") { return "한국어" }
         if id.hasPrefix("fr") { return "Français" }
         if id.hasPrefix("de") { return "Deutsch" }
@@ -132,8 +133,7 @@ final class AISettings {
 /// What the reader is told before passages leave the device.
 enum ConsentText {
     static func message(_ p: AIProviderKind) -> String {
-        "AI 回答由 \(p.displayName) 生成。Ginkgo 会用你自己的 key，把选中的原文、它前后的几段文字、书名和你的问题直接发给 "
-            + "\(p.displayName)。Ginkgo 没有自己的服务器，看不到也不保存这些内容；\(p.displayName) 按它的隐私政策处理。"
-            + "可以随时在设置里关掉。"
+        let name = p.displayName
+        return String(localized: "AI 回答由 \(name) 生成。Ginkgo 会用你自己的 key，把选中的原文、它前后的几段文字、书名和你的问题直接发给 \(name)。Ginkgo 没有自己的服务器，看不到也不保存这些内容；\(name) 按它的隐私政策处理。可以随时在设置里关掉。")
     }
 }
