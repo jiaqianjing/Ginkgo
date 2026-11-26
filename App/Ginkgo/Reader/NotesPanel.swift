@@ -9,8 +9,6 @@ struct NotesPanel: View {
     @State private var shareURL: URL?
     @State private var exportError: String?
     @State private var confirmClear = false
-    /// "Export first": clear once the share sheet for the exported notes closes.
-    @State private var clearAfterExport = false
 
     enum Filter: String, CaseIterable, Identifiable {
         case all, notes, highlights
@@ -47,7 +45,10 @@ struct NotesPanel: View {
                 Spacer()
                 Menu {
                     Button("Markdown 笔记", systemImage: "doc.plaintext") { export { try Exporter.writeMarkdown(for: model.book, annotations: model.annotations) } }
-                    Button("带批注的 PDF", systemImage: "doc.richtext") { export { try Exporter.writeAnnotatedPDF(for: model.book, annotations: model.annotations) } }
+                    Button("带批注的 PDF", systemImage: "doc.richtext") {
+                        // Page ink is saved just before export and may not be in the reader's cached list yet.
+                        export { try Exporter.writeAnnotatedPDF(for: model.book, annotations: model.allRecords) }
+                    }
                     Divider()
                     Button("清除全部批注…", systemImage: "arrow.counterclockwise", role: .destructive) { confirmClear = true }
                         .disabled(Library.AnnotationCount(model.allRecords).isEmpty)
@@ -83,16 +84,10 @@ struct NotesPanel: View {
             }
         }
         .background(Theme.paper)
-        .sheet(item: $shareURL, onDismiss: {
-            if clearAfterExport { clearAfterExport = false; withAnimation { model.clearAll() } }
-        }) { ShareSheet(url: $0) }
+        // Dismissing the share sheet (including Cancel) must never change the book.
+        .sheet(item: $shareURL) { ShareSheet(url: $0) }
         .confirmationDialog("恢复到导入时的样子？", isPresented: $confirmClear, titleVisibility: .visible) {
             Button("清除全部批注", role: .destructive) { withAnimation { model.clearAll() } }
-            Button("先导出笔记，再清除") {
-                clearAfterExport = true
-                export { try Exporter.writeMarkdown(for: model.book, annotations: model.annotations) }
-                if shareURL == nil { clearAfterExport = false }
-            }
             Button("取消", role: .cancel) {}
         } message: {
             Text("将删除\(Library.AnnotationCount(model.allRecords).summary)。PDF 原文件不受影响。关闭这本书之前，可以用撤销整批恢复。")

@@ -548,22 +548,6 @@
         }
       }
     },
-    "先导出笔记，再清除": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Export notes first, then clear"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "先导出笔记，再清除"
-          }
-        }
-      }
-    },
     "全部": {
       "localizations": {
         "en": {

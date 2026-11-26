@@ -1,6 +1,7 @@
 import GinkgoAI
 import GinkgoCore
 import PDFKit
+import PencilKit
 import SwiftData
 import SwiftUI
 import Testing
@@ -73,6 +74,44 @@ import UIKit
         #expect(types.contains("Highlight"))
         #expect(types.contains("Text"))
         Library.delete(book, from: context)
+    }
+
+    @Test func annotatedPDFExportsRecentlySavedInkWithoutChangingTheBook() throws {
+        let book = try Library.importPDF(at: SamplePDF.writeFile(), into: context)
+        defer { Library.delete(book, from: context) }
+        book.title = "Export regression \(UUID())"
+        let document = try #require(PDFDocument(url: book.fileURL))
+        let model = ReaderModel(book: book, document: document, context: context)
+        let selection = try #require(document.findString("living fossil", withOptions: []).first)
+        let highlight = try #require(model.highlight(selection, color: .green))
+        let points = [CGPoint(x: 65, y: 70), CGPoint(x: 82, y: 96), CGPoint(x: 108, y: 84)]
+            .enumerated().map { index, location in
+                PKStrokePoint(location: location, timeOffset: Double(index) * 0.1, size: CGSize(width: 3, height: 3),
+                              opacity: 1, force: 1, azimuth: 0, altitude: .pi / 2)
+            }
+        let stroke = PKStroke(ink: PKInk(.pen, color: .black),
+                              path: PKStrokePath(controlPoints: points, creationDate: .now))
+        let drawing = PKDrawing(strokes: [stroke])
+        model.saveInk(drawing, page: 0)
+        #expect(!model.annotations.contains { $0.kind == .ink })
+        let inkID = try #require(model.allRecords.first { $0.kind == .ink }).id
+        let originalPDF = try Data(contentsOf: book.fileURL)
+
+        let markdown = try Exporter.writeMarkdown(for: book, annotations: model.annotations)
+        defer { try? FileManager.default.removeItem(at: markdown) }
+        let exportedPDF = try Exporter.writeAnnotatedPDF(for: book, annotations: model.allRecords)
+        defer { try? FileManager.default.removeItem(at: exportedPDF) }
+
+        #expect(try String(contentsOf: markdown, encoding: .utf8).contains("living fossil"))
+        let exported = try #require(PDFDocument(url: exportedPDF))
+        let types = (0..<exported.pageCount).flatMap { exported.page(at: $0)?.annotations.compactMap(\.type) ?? [] }
+        #expect(types.contains("Highlight"))
+        #expect(types.contains("Ink"))
+        try context.save()
+        let reopened = ReaderModel(book: book, document: document, context: context)
+        #expect(Set(reopened.allRecords.map(\.id)) == [highlight.id, inkID])
+        #expect(reopened.inkDrawing(page: 0)?.strokes.count == 1)
+        #expect(try Data(contentsOf: book.fileURL) == originalPDF)
     }
 
     @Test func underlinesAndWavesExportAsStandardMarkup() throws {

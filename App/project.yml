@@ -89,4 +89,6 @@ schemes:
       targets: [GinkgoTests]
       # Tests read Chinese text; pin the language so they pass on any machine.
       commandLineArguments:
+        # Hosted simulator tests must not open the real library or invoke CloudKit.
+        "-inMemoryStore YES": true
         "-AppleLanguages (zh-Hans)": true
